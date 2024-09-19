@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "upmem_llm_framework"
+version = "0.0.1"
+authors = [
+  { name="Cristobal Ortega", email="cortega@upmem.com"  },
+  { name="Sylvan Brocard", email="sbrocard@upmem.com"}
+]
+
+description = """\
+    UPMEM LLM Framework allows profiling PyTorch layers and functions\
+    and simulate those layers/functions with a given hardware profile.\
+    """
+readme = "README.md"
+dependencies = [
+    "torch==2.4.1",
+    "transformers==4.44.2",
+    "jsonschema==4.23.0",
+    "typer==0.12.5",
+]
+requires-python = ">=3.10"
+classifiers = [
+    'Development Status :: 2 - Pre-Alpha',
+    'Intended Audience :: Developers',
+    'Natural Language :: English',
+    'Programming Language :: Python :: 3.10',
+]
+
+[project.optional-dependencies]
+dev = [
+    "black==24.8.0",
+    "pylint==3.2.7",
+    "build==1.2.2",
+    "pytest==8.3.3",
+]
+
+[project.urls]
+Homepage = "https://upmem.com"
+
+[tool.setuptools.package-data]
+include = [
+    "src/upmem_llm_framework/architectures_schema.json",
+    "src/upmem_llm_framework/sim_architectures.yaml",
+]

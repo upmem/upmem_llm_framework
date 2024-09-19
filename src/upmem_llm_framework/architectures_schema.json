@@ -1,0 +1,67 @@
+{
+    "type": "object",
+    "additionalProperties": {
+        "type": "object",
+        "properties": {
+            "host_to_device_bw_GBs": {
+                "type": "number",
+                "description": "Host to device bandwidth in GB/s"
+            },
+            "host_to_device_pj_per_bit": {
+                "type": "number",
+                "description": "Host to device energy per bit in pJ"
+            },
+            "device_to_host_bw_GBs": {
+                "type": "number",
+                "description": "Device to host bandwidth in GB/s"
+            },
+            "device_to_host_pj_per_bit": {
+                "type": "number",
+                "description": "Device to host energy per bit in pJ"
+            },
+            "mem_bw_GBs": {
+                "type": "number",
+                "description": "Memory bandwidth in GB/s"
+            },
+            "mem_pj_per_bit": {
+                "type": "number",
+                "description": "Memory energy per bit in pJ"
+            },
+            "tflops": {
+                "type": "number",
+                "description": "TFLOPS"
+            },
+            "pj_per_tflop": {
+                "type": "number",
+                "description": "Energy per TFLOP in pJ"
+            },
+            "tflops_int4": {
+                "type": "number",
+                "description": "TFLOPS for INT4 (optional)"
+            },
+            "softmax_ns_per_element": {
+                "type": "number",
+                "description": "Softmax latency per element in ns (optional)"
+            },
+            "SiLU_ns_per_element": {
+                "type": "number",
+                "description": "SiLU latency per element in ns (optional)"
+            },
+            "RMSNorm_ns_per_element": {
+                "type": "number",
+                "description": "RMSNorm latency per element in ns (optional)"
+            }
+        },
+        "required": [
+            "host_to_device_bw_GBs",
+            "host_to_device_pj_per_bit",
+            "device_to_host_bw_GBs",
+            "device_to_host_pj_per_bit",
+            "mem_bw_GBs",
+            "mem_pj_per_bit",
+            "tflops",
+            "pj_per_tflop"
+        ],
+        "additionalProperties": false
+    }
+}

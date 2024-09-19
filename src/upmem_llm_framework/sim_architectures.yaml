@@ -1,0 +1,372 @@
+# yaml-language-server: $schema=./architectures_schema.json
+
+DGX100:
+    host_to_device_bw_GBs: 450
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 450
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 26800
+    mem_pj_per_bit: 7
+    tflops: 7916
+    pj_per_tflop: 0.5e+12
+
+V100:
+    host_to_device_bw_GBs: 64
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 64
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 900
+    mem_pj_per_bit: 7
+    tflops: 112
+    pj_per_tflop: 0.5e+12
+
+H100_x4:
+    host_to_device_bw_GBs: 64
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 64
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 8000 # 2000 * 4
+    mem_pj_per_bit: 7
+    tflops: 3026 # 756.5 * 4
+    pj_per_tflop: 0.5e+12
+    softmax_ns_per_element: 5.208e-4 # 0.4 / (16 * 12) / 4
+    SiLU_ns_per_element: 7.813e-4 # 0.6 / (16 * 12) / 4
+    RMSNorm_ns_per_element: 1.354e-3 # 1.04 / (16 * 12) / 4
+
+H100_x5:
+    host_to_device_bw_GBs: 64
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 64
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 10000 # 2000 * 5
+    mem_pj_per_bit: 7
+    tflops: 3782.5 # 756.5 * 5
+    pj_per_tflop: 0.5e+12
+    softmax_ns_per_element: 4.167e-4 # 0.4 / (16 * 12) / 5
+    SiLU_ns_per_element: 6.25e-4 # 0.6 / (16 * 12) / 5
+    RMSNorm_ns_per_element: 1.0833e-3 # 1.04 / (16 * 12) / 5
+
+H100_x8:
+    host_to_device_bw_GBs: 450
+    host_to_device_pj_per_bit: 280 # 40 * (8 - 1)
+    device_to_host_bw_GBs: 450
+    device_to_host_pj_per_bit: 40
+    mem_bw_GBs: 16000 # 2000 * 8
+    mem_pj_per_bit: 7
+    tflops: 6052 # 756.5 * 8
+    pj_per_tflop: 0.5e+12
+    softmax_ns_per_element: 2.604e-4 # 0.4 / (16 * 12) / 8
+    SiLU_ns_per_element: 3.906e-4 # 0.6 / (16 * 12) / 8
+    RMSNorm_ns_per_element: 6.771e-4 # 1.04 / (16 * 12) / 8
+
+H100_x3:
+    host_to_device_bw_GBs: 64
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 64
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 6000 # 2000 * 3
+    mem_pj_per_bit: 7
+    tflops: 2269.5 # 756.5 * 3
+    pj_per_tflop: 0.5e+12
+    # Assuming a H100 is equivalent to 128 AI PIM cores (8 DIMMs) due to server size
+    softmax_ns_per_element: 1.0417e-03 # 0.4 / (16 * 2 * 4) / 3
+    SiLU_ns_per_element: 1.5625e-03 # 0.6 / (16 * 2 * 4) / 3
+    RMSNorm_ns_per_element: 2.7083e-3 # 1.04 / (16 * 2 * 4) / 3
+
+H100_x2:
+    host_to_device_bw_GBs: 64
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 64
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 4000 # 2000 * 2
+    mem_pj_per_bit: 7
+    tflops: 1513 # 756.5 * 2
+    pj_per_tflop: 0.5e+12
+    softmax_ns_per_element: 1.5625e-3 # 0.4 / (16 * 2 * 4) / 2
+    SiLU_ns_per_element: 2.34375e-3 # 0.6 / (16 * 2 * 4) / 2
+    RMSNorm_ns_per_element: 4.0625e-3 # 1.04 / (16 * 2 * 4) / 2
+
+A800:
+    host_to_device_bw_GBs: 64
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 64
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 1500
+    mem_pj_per_bit: 7
+    tflops: 312
+    pj_per_tflop: 0.5e+12
+    # Assuming a A800 is equivalent to 128 AI PIM cores (8 DIMMs) due to server size
+    softmax_ns_per_element: 3.125e-3 # 0.4 / (16 * 2 * 4)
+    SiLU_ns_per_element: 4.6875e-3 # 0.6 / (16 * 2 * 4)
+    RMSNorm_ns_per_element: 8.125e-3 # 1.04 / (16 * 2 * 4)
+
+H20:
+    host_to_device_bw_GBs: 64
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 64
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 4000
+    mem_pj_per_bit: 7
+    tflops: 148
+    pj_per_tflop: 0.5e+12
+    # Assuming a H20 is equivalent to 128 AI PIM cores (8 DIMMs) due to server size
+    softmax_ns_per_element: 3.125e-3 # 0.4 / (16 * 2 * 4)
+    SiLU_ns_per_element: 4.6875e-3 # 0.6 / (16 * 2 * 4)
+    RMSNorm_ns_per_element: 8.125e-3 # 1.04 / (16 * 2 * 4)
+
+H200:
+    host_to_device_bw_GBs: 64
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 64
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 2860
+    mem_pj_per_bit: 7
+    tflops: 989
+    pj_per_tflop: 0.5e+12
+    # Assuming a H100 is equivalent to 128 AI PIM cores (8 DIMMs) due to server size
+    softmax_ns_per_element: 3.125e-3 # 0.4 / (16 * 2 * 4)
+    SiLU_ns_per_element: 4.6875e-3 # 0.6 / (16 * 2 * 4)
+    RMSNorm_ns_per_element: 8.125e-3 # 1.04 / (16 * 2 * 4)
+
+H100:
+    host_to_device_bw_GBs: 64
+    host_to_device_pj_per_bit: 27
+    device_to_host_bw_GBs: 64
+    device_to_host_pj_per_bit: 27
+    mem_bw_GBs: 2000
+    mem_pj_per_bit: 7
+    tflops: 756.5
+    pj_per_tflop: 0.5e+12
+    # Assuming a H100 is equivalent to 128 AI PIM cores (8 DIMMs) due to server size
+    softmax_ns_per_element: 3.125e-3 # 0.4 / (16 * 2 * 4)
+    SiLU_ns_per_element: 4.6875e-3 # 0.6 / (16 * 2 * 4)
+    RMSNorm_ns_per_element: 8.125e-3 # 1.04 / (16 * 2 * 4)
+
+A6000:
+    host_to_device_bw_GBs: 32
+    host_to_device_pj_per_bit: 35
+    device_to_host_bw_GBs: 32
+    device_to_host_pj_per_bit: 35
+    mem_bw_GBs: 768
+    mem_pj_per_bit: 15
+    tflops: 155
+    pj_per_tflop: 0.5e+12
+
+A17Pro:
+    host_to_device_bw_GBs: 51.2
+    host_to_device_pj_per_bit: 20
+    device_to_host_bw_GBs: 51.2
+    device_to_host_pj_per_bit: 20
+    mem_bw_GBs: 51.2
+    mem_pj_per_bit: 20
+    tflops: 17 # GPU (FP16): 4.3, ANE (INT4): 35, ANE (INT8): 17
+    pj_per_tflop: 0.4e+12
+
+Dimensity9300:
+    host_to_device_bw_GBs: 76.8
+    host_to_device_pj_per_bit: 10
+    device_to_host_bw_GBs: 76.8
+    device_to_host_pj_per_bit: 10
+    mem_bw_GBs: 76.8
+    mem_pj_per_bit: 10
+    tflops: 16 # GPU (FP16): 6, APU (INT4): 33, APU (INT8): 16
+    pj_per_tflop: 0.4e+12
+
+Snapdragon8gen3:
+    host_to_device_bw_GBs: 77
+    host_to_device_pj_per_bit: 10
+    device_to_host_bw_GBs: 77
+    device_to_host_pj_per_bit: 10
+    mem_bw_GBs: 77
+    mem_pj_per_bit: 10
+    tflops: 17 # GPU (FP16): 4.73, Hexagon (INT4): 34, Hexagon (INT8): 17
+    pj_per_tflop: 0.4e+12
+
+SAM_LPDDR5PIM:
+    host_to_device_bw_GBs: 12.8
+    host_to_device_pj_per_bit: 22
+    device_to_host_bw_GBs: 12.8
+    device_to_host_pj_per_bit: 22
+    mem_bw_GBs: 102.4
+    mem_pj_per_bit: 0.95
+    tflops: 0.1024
+    tflops_int4: 0.4096 # 0.1024 * 4
+    pj_per_tflop: 0.8e+12
+
+PIM_AI_1chip:
+    host_to_device_bw_GBs: 12.8
+    host_to_device_pj_per_bit: 20
+    device_to_host_bw_GBs: 12.8
+    device_to_host_pj_per_bit: 20
+    mem_bw_GBs: 102.4
+    mem_pj_per_bit: 0.95
+    tflops: 5
+    pj_per_tflop: 0.4e+12
+
+PIM_AI_4chip:
+    host_to_device_bw_GBs: 12.8
+    host_to_device_pj_per_bit: 80 # 20 * 4
+    device_to_host_bw_GBs: 51.2 # 12.8 * 4
+    device_to_host_pj_per_bit: 20
+    mem_bw_GBs: 409.6 # 102.4 * 4
+    mem_pj_per_bit: 0.95
+    tflops: 20 # 5 * 4
+    tflops_int4: 128 # 32 * 4
+    pj_per_tflop: 0.4e+12
+    softmax_ns_per_element: 0.1 # 0.4 / 4
+    SiLU_ns_per_element: 0.15 # 0.6 / 4
+    RMSNorm_ns_per_element: 0.275 # 1.04 / 4
+
+PIM_AI_1dimm:
+    host_to_device_bw_GBs: 44
+    host_to_device_pj_per_bit: 50
+    device_to_host_bw_GBs: 44
+    device_to_host_pj_per_bit: 50
+    mem_bw_GBs: 1638.4 # 102.4 * 16
+    mem_pj_per_bit: 0.95
+    tflops: 80 # 5 * 16
+    pj_per_tflop: 0.4e+12
+
+PIM_AI_2dimm:
+    host_to_device_bw_GBs: 22
+    host_to_device_pj_per_bit: 100 # 50 * 2
+    device_to_host_bw_GBs: 44
+    device_to_host_pj_per_bit: 50
+    mem_bw_GBs: 3276.8 # 102.4 * 16 * 2
+    mem_pj_per_bit: 0.95
+    tflops: 160 # 5 * 16 * 2
+    pj_per_tflop: 0.4e+12
+    softmax_ns_per_element: 1.25e-02 # 0.4 / (16 * 2)
+    SiLU_ns_per_element: 1.875e-02 # 0.6 / (16 * 2)
+    RMSNorm_ns_per_element: 3.25e-02 # 1.04 / (16 * 2)
+
+PIM_AI_4dimm:
+    host_to_device_bw_GBs: 22
+    host_to_device_pj_per_bit: 200 # 50 * 4
+    device_to_host_bw_GBs: 88 # 44 * 2
+    device_to_host_pj_per_bit: 50
+    mem_bw_GBs: 6553.6 # 102.4 * 16 * 4
+    mem_pj_per_bit: 0.95
+    tflops: 320 # 5 * 16 * 4
+    pj_per_tflop: 0.4e+12
+    softmax_ns_per_element: 6.25e-03 # 0.4 / (16 * 4)
+    SiLU_ns_per_element: 9.375e-03 # 0.6 / (16 * 4)
+    RMSNorm_ns_per_element: 1.625e-02 # 1.04 / (16 * 4)
+
+PIM_AI_16dimm:
+    host_to_device_bw_GBs: 22
+    host_to_device_pj_per_bit: 800 # 50 * 16
+    device_to_host_bw_GBs: 352 # 44 * 8
+    device_to_host_pj_per_bit: 50
+    mem_bw_GBs: 26214.4 # 102.4 * 16 * 16
+    mem_pj_per_bit: 0.95
+    tflops: 2048 # 8 * 16 * 16
+    pj_per_tflop: 0.4e+12
+    softmax_ns_per_element: 1.5625e-03 # 0.4 / (16 * 16)
+    SiLU_ns_per_element: 2.34375e-03 # 0.6 / (16 * 16)
+    RMSNorm_ns_per_element: 4.0625e-03 # 1.04 / (16 * 16)
+
+PIM_AI_8dimm:
+    host_to_device_bw_GBs: 22
+    host_to_device_pj_per_bit: 640 # (50 + 2 * 15) * 8
+    device_to_host_bw_GBs: 176 # 44 * 4
+    device_to_host_pj_per_bit: 50
+    mem_bw_GBs: 13107.2 # 102.4 * 16 * 8
+    mem_pj_per_bit: 0.95
+    tflops: 1024 # 8 * 16 * 8
+    pj_per_tflop: 0.5e+12
+    softmax_ns_per_element: 3.125e-03 # 0.4 / (16 * 8)
+    SiLU_ns_per_element: 4.6875e-03 # 0.6 / (16 * 8)
+    RMSNorm_ns_per_element: 8.125e-03 # 1.04 / (16 * 8)
+
+PIM_AI_10dimm:
+    host_to_device_bw_GBs: 22
+    host_to_device_pj_per_bit: 500 # 50 * 10
+    device_to_host_bw_GBs: 220 # 44 * 5
+    device_to_host_pj_per_bit: 50
+    mem_bw_GBs: 16384 # 102.4 * 16 * 10
+    mem_pj_per_bit: 0.95
+    tflops: 1280 # 8 * 16 * 10
+    pj_per_tflop: 0.4e+12
+    softmax_ns_per_element: 2.5e-03 # 0.4 / (16 * 10)
+    SiLU_ns_per_element: 3.75e-03 # 0.6 / (16 * 10)
+    RMSNorm_ns_per_element: 6.5e-03 # 1.04 / (16 * 10)
+
+PIM_AI_6dimm:
+    host_to_device_bw_GBs: 22
+    host_to_device_pj_per_bit: 480 # (50 + 2 * 15) * 6
+    device_to_host_bw_GBs: 132 # 44 * 3
+    device_to_host_pj_per_bit: 50
+    mem_bw_GBs: 9830.4 # 102.4 * 16 * 6
+    mem_pj_per_bit: 0.95
+    tflops: 768 # 8 * 16 * 6
+    pj_per_tflop: 0.5e+12
+    softmax_ns_per_element: 4.1667e-03 # 0.4 / (16 * 6)
+    SiLU_ns_per_element: 6.25e-03 # 0.6 / (16 * 6)
+    RMSNorm_ns_per_element: 1.0833e-02 # 1.04 / (16 * 6)
+
+CXL_PIM_BC:
+    # CXL board with:
+    # 8-lane full duplex PCIe GEN5
+    # 16 LPDDR controllers, 16 bits, 9.6 GT/s, dual rank (2 devices per IFC)
+    # A device is a stack of 4 LPDDR-PIM
+    # 256 GB overall memory (stacking 4 LPDDR-PIM = 8 dies)
+    # This might be seen as 8x AI PIM DIMM with C2C connection between groups of 4 chips
+    # Broadcast between LPDDR-PIM is possible
+    host_to_device_bw_GBs: 19.2 # 8-lane PCIe GEN5, but only one LPDDR5 at a time
+    host_to_device_pj_per_bit: 50 # crossing PCIe and LPDDR interfaces on both host and device
+    device_to_host_bw_GBs: 19.2 # 8-lane PCIe GEN5, but only one LPDDR5 at a time
+    device_to_host_pj_per_bit: 50 # crossing PCIe and LPDDR interfaces on both host and device
+    mem_bw_GBs: 13107.2 # 102.4 * 16 * 2 * 4
+    mem_pj_per_bit: 0.95
+    tflops: 640 # 5 * 16 * 2 *4
+    pj_per_tflop: 0.4e+12
+    softmax_ns_per_element: 3.125e-03 # 0.4 / (16 * 2 * 4)
+    SiLU_ns_per_element: 4.6875e-03 # 0.6 / (16 * 2 * 4)
+    RMSNorm_ns_per_element: 8.125e-03 # 1.04 / (16 * 2 * 4)
+
+CXL_PIM_nBC:
+    # CXL board with:
+    # 8-lane full duplex PCIe GEN5
+    # 16 LPDDR controllers, 16 bits, 9.6 GT/s, dual rank (2 devices per IFC)
+    # A device is a stack of 4 LPDDR-PIM
+    # 256 GB overall memory (stacking 4 LPDDR-PIM = 8 dies)
+    # This might be seen as 8x AI PIM DIMM with C2C connection between groups of 4 chips
+    # Broadcast between LPDDR-PIM is not possible
+    host_to_device_bw_GBs: 0.6 # 19.2 /32: 8-lane PCIe GEN5, but only one LPDDR5 at a time
+    host_to_device_pj_per_bit: 1600 # 50 * 32: crossing PCIe and LPDDR interfaces on both host and device
+    device_to_host_bw_GBs: 19.2 # 8-lane PCIe GEN5, but only one LPDDR5 at a time
+    device_to_host_pj_per_bit: 50 # crossing PCIe and LPDDR interfaces on both host and device
+    mem_bw_GBs: 13107.2 # 102.4 * 16 * 2 * 4
+    mem_pj_per_bit: 0.95
+    tflops: 640 # 5 * 16 * 2 * 4
+    pj_per_tflop: 0.4e+12
+    softmax_ns_per_element: 3.125e-3 # 0.4 / (16 * 2 * 4)
+    SiLU_ns_per_element: 4.6875e-3 # 0.6 / (16 * 2 * 4)
+    RMSNorm_ns_per_element: 8.125e-3 # 1.04 / (16 * 2 * 4)
+
+PIM_AI_12dimm:
+    host_to_device_bw_GBs: 22
+    host_to_device_pj_per_bit: 960 # (50 + 2 * 15) * 12
+    device_to_host_bw_GBs: 264 # 44 * 6
+    device_to_host_pj_per_bit: 50
+    mem_bw_GBs: 19660.8 # 102.4 * 16 * 12
+    mem_pj_per_bit: 0.95
+    tflops: 1536 # 8 * 16 * 12
+    pj_per_tflop: 0.5e+12
+    softmax_ns_per_element: 2.0833e-3 # 0.4 / (16 * 12)
+    SiLU_ns_per_element: 3.125e-3 # 0.6 / (16 * 12)
+    RMSNorm_ns_per_element: 5.4167e-03 # 1.04 / (16 * 12)
+
+PIM_AI_24dimm:
+    host_to_device_bw_GBs: 22
+    host_to_device_pj_per_bit: 1920 # (50 + 2 * 15) * 24
+    device_to_host_bw_GBs: 528 # 44 * 12
+    device_to_host_pj_per_bit: 50
+    mem_bw_GBs: 39321.6 # 102.4 * 16 * 24
+    mem_pj_per_bit: 0.95
+    tflops: 3072 # 8 * 16 * 24
+    pj_per_tflop: 0.5e+12
+    softmax_ns_per_element: 1.0417e-3 # 0.4 / (16 * 24)
+    SiLU_ns_per_element: 1.5625e-3 # 0.6 / (16 * 24)
+    RMSNorm_ns_per_element: 2.7083e-3 # 1.04 / (16 * 24)

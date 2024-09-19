@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../src/upmem_llm_framework/architectures_schema.json
+
+PIM_AI_4chip_duplicated:
+    host_to_device_bw_GBs: 12.8
+    host_to_device_pj_per_bit: 80 # 20 * 4
+    device_to_host_bw_GBs: 51.2 # 12.8 * 4
+    device_to_host_pj_per_bit: 20
+    mem_bw_GBs: 409.6 # 102.4 * 4
+    mem_pj_per_bit: 0.95
+    tflops: 20 # 5 * 4
+    tflops_int4: 128 # 32 * 4
+    pj_per_tflop: 0.4e+12
+    softmax_ns_per_element: 0.1 # 0.4 / 4
+    SiLU_ns_per_element: 0.15 # 0.6 / 4
+    RMSNorm_ns_per_element: 0.275 # 1.04 / 4
