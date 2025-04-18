@@ -1,6 +1,8 @@
 UPMEM LLM framework for profiling / simulation
 ==============================================
 
+[![pytest](https://github.com/upmem/upmem_llm_framework/actions/workflows/pytest.yml/badge.svg)](https://github.com/upmem/upmem_llm_framework/actions/workflows/pytest.yml)
+
 This library allows
 
 1. Profiling PyTorch neural networks on a CPU,
@@ -241,6 +243,12 @@ My_accelerator:
 
 My_accelerator2:
     <...>
+```
+
+Use the `extra-archs` option to add the new accelerator to the simulation:
+
+```bash
+python3 simulations_llama2_7B.py --simulation --extra-archs my_archs.yaml profile --device My_accelerator
 ```
 
 *Note:* underscores in device names such as `new_device` convert to hyphens,
