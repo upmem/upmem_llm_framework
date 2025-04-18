@@ -6,10 +6,19 @@ build-backend = "setuptools.build_meta"
 name = "upmem_llm_framework"
 version = "0.0.1"
 authors = [
-  { name="Cristobal Ortega", email="cortega@upmem.com"  },
-  { name="Sylvan Brocard", email="sbrocard@upmem.com"}
+    { name = "Cristobal Ortega", email = "cortega@upmem.com" },
+    { name = "Sylvan Brocard", email = "sbrocard@upmem.com" },
 ]
-
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = [
+    "upmem",
+    "llm",
+    "transformer",
+    "pytorch",
+    "profiling",
+    "accelerator",
+]
 description = """\
     UPMEM LLM Framework allows profiling PyTorch layers and functions\
     and simulate those layers/functions with a given hardware profile.\
@@ -30,18 +39,27 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "black==24.8.0",
-    "pylint==3.2.7",
-    "build==1.2.2",
-    "pytest==8.3.3",
-]
+dev = ["pytest==8.3.3"]
 
 [project.urls]
 Homepage = "https://upmem.com"
+Repository = "https://github.com/upmem/upmem_llm_framework"
 
 [tool.setuptools.package-data]
 include = [
     "src/upmem_llm_framework/architectures_schema.json",
     "src/upmem_llm_framework/sim_architectures.yaml",
+]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["COM812"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint.extend-per-file-ignores]
+"tests/**/*.py" = [
+    "S101", # asserts allowed in tests
+    "T201", # print statements allowed in tests
 ]
