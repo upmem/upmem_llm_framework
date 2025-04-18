@@ -19,6 +19,7 @@ from jsonschema import validate
 
 from upmem_llm_framework.options import options
 
+
 def read_architecture_file(file: Path, schema: Dict) -> Dict:
     with open(file, "r", encoding="UTF-8") as f:
         architectures = yaml.safe_load(f)
@@ -33,19 +34,13 @@ def read_architectures() -> Dict:
     :return: a dictionary containing the architectures
     """
     with as_file(files("upmem_llm_framework")) as resources_dir:
-        with open(
-            resources_dir / "architectures_schema.json", "r", encoding="UTF-8"
-        ) as f:
+        with open(resources_dir / "architectures_schema.json", "r", encoding="UTF-8") as f:
             schema = json.load(f)
 
-        architectures = read_architecture_file(
-            resources_dir / "sim_architectures.yaml", schema
-        )
+        architectures = read_architecture_file(resources_dir / "sim_architectures.yaml", schema)
 
         if options.extra_archs:
-            extra_architectures = read_architecture_file(
-                options.extra_archs, schema
-            )
+            extra_architectures = read_architecture_file(options.extra_archs, schema)
             architectures.update(extra_architectures)
 
     return architectures

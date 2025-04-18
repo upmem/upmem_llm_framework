@@ -32,7 +32,6 @@ from upmem_llm_framework.utils import add_dictionaries
 
 
 class BaseArchitecture:
-
     def __init__(
         self,
         active_chips=1,
@@ -59,7 +58,6 @@ class BaseArchitecture:
         num_key_value_heads=-1,
         verbose=False,
     ):
-
         self.name = ""
         self.active_chips = active_chips
         # Compute capabilities
@@ -98,9 +96,7 @@ class BaseArchitecture:
             if key == "tflops_int4":
                 continue
             if not hasattr(self, key):
-                raise ValueError(
-                    f"Warning: {key} is not a valid attribute for {self.__class__}"
-                )
+                raise ValueError(f"Warning: {key} is not a valid attribute for {self.__class__}")
             setattr(self, key, value)
         if "tflops_int4" in spec and self.data_type_bytes == 0.5:
             self.tflops = spec["tflops_int4"]
@@ -132,9 +128,7 @@ class BaseArchitecture:
         stride = layer.stride
         padding = layer.padding
 
-        n_height = n_height + 2 * (
-            padding[0] if isinstance(padding, tuple) else padding
-        )
+        n_height = n_height + 2 * (padding[0] if isinstance(padding, tuple) else padding)
         n_width = n_width + 2 * (padding[1] if isinstance(padding, tuple) else padding)
 
         # Example of how many times a kernel is applied depending on stride:
@@ -158,9 +152,7 @@ class BaseArchitecture:
         )
 
         # TFLOPS when applying once the kernel
-        tflops_kernel = (
-            2 * batch_size * n_channels * weight_shape[1] * weight_shape[0]
-        ) / 1e12
+        tflops_kernel = (2 * batch_size * n_channels * weight_shape[1] * weight_shape[0]) / 1e12
 
         tflops = tflops_kernel * width_times * height_times
 
@@ -172,9 +164,7 @@ class BaseArchitecture:
         n_rows = input_shape[-2] if (len(input_shape) > 1) else 1
         n_columns = input_shape[-1]
 
-        tflops = (
-            batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
-        )
+        tflops = batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
 
         return tflops
 
@@ -194,9 +184,7 @@ class BaseArchitecture:
 
         return tflops
 
-    def get_moved_data_bytes(
-        self, input_shape, weight_shape, load_input=False, load_weight=True
-    ):
+    def get_moved_data_bytes(self, input_shape, weight_shape, load_input=False, load_weight=True):
         batch_size = input_shape[-4] if (len(input_shape) > 3) else 1
         n_heads = input_shape[-3] if (len(input_shape) > 2) else 1
         n_rows = input_shape[-2] if (len(input_shape) > 1) else 1
@@ -248,9 +236,7 @@ class BaseArchitecture:
         n_columns = input_shape[-1]
 
         bandwidth = (
-            self.host_to_device_bw_GBs
-            if direction == "to_device"
-            else self.device_to_host_bw_GBs
+            self.host_to_device_bw_GBs if direction == "to_device" else self.device_to_host_bw_GBs
         )
 
         data_size_bytes = self.data_type_bytes * (
@@ -279,9 +265,7 @@ class BaseArchitecture:
 
         return transfer_time_ns, performance, energy, moved_data
 
-    def compute_ns(
-        self, input_shape, layer_obj, weight_shape, load_input=False, load_weight=True
-    ):
+    def compute_ns(self, input_shape, layer_obj, weight_shape, load_input=False, load_weight=True):
         tflops = self.get_tflops(input_shape, layer_obj, weight_shape)
 
         data_size_bytes = self.get_moved_data_bytes(
@@ -333,9 +317,7 @@ class BaseArchitecture:
         n_rows = key_shape[-2] if (len(key_shape) > 1) else 1  # already concatenated!
         n_columns = key_shape[-1]
 
-        q_rows = (
-            output_shape[-2] if (len(output_shape) > 2) else 1
-        )  # 1 when using kv cache in GEN.
+        q_rows = output_shape[-2] if (len(output_shape) > 2) else 1  # 1 when using kv cache in GEN.
 
         compute_time_ns = 0
         load_k_time = 0
@@ -368,16 +350,13 @@ class BaseArchitecture:
             load_input=False,
             load_weight=False,
         )
-        compute_time_ns += max(
-            load_k_time, step_time
-        )  # overlap loading K with Q x Kt computation
+        compute_time_ns += max(load_k_time, step_time)  # overlap loading K with Q x Kt computation
         performance = add_dictionaries(performance, step_perf)
         energy = add_dictionaries(energy, step_energy)
 
         # Load KV cache if GENeration and kv cache is enabled
         # Only V is required for next step
         if not summarization and use_kv_cache:
-
             v_cache = torch.Size([batch_size, n_heads, n_rows, n_columns])
             load_v_time, load_v_perf, load_v_energy = self.load_data(v_cache)
             performance = add_dictionaries(performance, load_v_perf)
@@ -446,9 +425,7 @@ class BaseArchitecture:
         energy = add_dictionaries(energy, step_energy)
 
         if self.verbose:
-            print(
-                f"Computing matmul: {shape_a} x {shape_b} in {compute_time_ns} with {energy}"
-            )
+            print(f"Computing matmul: {shape_a} x {shape_b} in {compute_time_ns} with {energy}")
 
         return compute_time_ns, performance, energy
 
@@ -462,12 +439,8 @@ class BaseArchitecture:
         if activation == "SiLU":
             activation_ns_per_element = self.SiLU_ns_per_element
 
-        tflops = (
-            batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
-        )
-        compute_time_ns = (
-            batch_size * n_heads * (n_rows * (activation_ns_per_element * n_columns))
-        )
+        tflops = batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
+        compute_time_ns = batch_size * n_heads * (n_rows * (activation_ns_per_element * n_columns))
 
         performance = {"compute": compute_time_ns}
         energy = {"compute": tflops * self.pj_per_tflop}
@@ -486,20 +459,14 @@ class BaseArchitecture:
         n_rows = data_shape[-2] if (len(data_shape) > 1) else 1
         n_columns = dimension
 
-        tflops = (
-            batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
-        )
-        compute_time_ns = (
-            batch_size * n_heads * n_rows * (self.RMSNorm_ns_per_element * n_columns)
-        )
+        tflops = batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
+        compute_time_ns = batch_size * n_heads * n_rows * (self.RMSNorm_ns_per_element * n_columns)
 
         performance = {"compute": compute_time_ns}
         energy = {"compute": tflops * self.pj_per_tflop}
 
         if self.verbose:
-            print(
-                "Computing RMSNorm:", data_shape, "in", compute_time_ns, "with", energy
-            )
+            print("Computing RMSNorm:", data_shape, "in", compute_time_ns, "with", energy)
 
         return compute_time_ns, performance, energy
 
@@ -509,19 +476,13 @@ class BaseArchitecture:
         n_rows = data_shape[-2] if (len(data_shape) > 1) else 1
         n_columns = data_shape[-1]
 
-        tflops = (
-            batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
-        )
-        compute_time_ns = (
-            batch_size * n_heads * n_rows * (self.softmax_ns_per_element * n_columns)
-        )
+        tflops = batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
+        compute_time_ns = batch_size * n_heads * n_rows * (self.softmax_ns_per_element * n_columns)
 
         performance = {"compute": compute_time_ns}
         energy = {"compute": tflops * self.pj_per_tflop}
 
         if self.verbose:
-            print(
-                "Computing softmax:", data_shape, "in", compute_time_ns, "with", energy
-            )
+            print("Computing softmax:", data_shape, "in", compute_time_ns, "with", energy)
 
         return compute_time_ns, performance, energy

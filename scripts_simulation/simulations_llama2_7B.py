@@ -13,9 +13,7 @@ app = typer.Typer(callback=upmem_layers.initialize_profiling_options)
 
 @app.command()
 def profile(
-    hf_token: Annotated[
-        str, typer.Argument(envvar="hf_token", help="Hugging Face API token")
-    ],
+    hf_token: Annotated[str, typer.Argument(envvar="hf_token", help="Hugging Face API token")],
     device: Annotated[str, typer.Option(help="Device to simulate for")] = "mixed",
     in_tokens: Annotated[int, typer.Option(help="Number of input tokens")] = 64,
     out_tokens: Annotated[int, typer.Option(help="Number of output tokens")] = 128,
@@ -68,9 +66,7 @@ def profile(
     print("Batch 1")
     prompt = "placeholder"
     prompt_batch = [prompt] * bs
-    input_ids = tokenizer(
-        prompt_batch, return_tensors="pt", return_token_type_ids=False
-    )
+    input_ids = tokenizer(prompt_batch, return_tensors="pt", return_token_type_ids=False)
     input_ids["input_ids"] = torch.randint(100, [bs, in_tokens])
     input_ids["attention_mask"] = torch.ones([bs, in_tokens], dtype=torch.int)
     print(input_ids.data["input_ids"][0].shape)

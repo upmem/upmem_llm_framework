@@ -206,12 +206,8 @@ class UPM_Profiler:
                 name_ctxt.append(ctxt)
             summary_nexec[ctxt] = 1 + summary_nexec.get(ctxt, 0)
             summary_time[ctxt] = log.exec_time_ms + summary_time.get(ctxt, 0)
-            summary_energy[ctxt] = add_dictionaries(
-                summary_energy.get(ctxt, {}), log.energy
-            )
-            summary_perf[ctxt] = add_dictionaries(
-                summary_perf.get(ctxt, {}), log.performance
-            )
+            summary_energy[ctxt] = add_dictionaries(summary_energy.get(ctxt, {}), log.energy)
+            summary_perf[ctxt] = add_dictionaries(summary_perf.get(ctxt, {}), log.performance)
             summary_transfer_bytes[ctxt] = add_dictionaries(
                 summary_transfer_bytes.get(ctxt, {}), log.transfer_bytes
             )
@@ -227,7 +223,6 @@ class UPM_Profiler:
             "host_to_device(mJ):device_to_host(mJ):main_mem(mJ):compute(mJ)"
         )
         for key in name_ctxt:
-
             perf_values = []
             for perf_key in [
                 "host_to_device",
@@ -236,9 +231,7 @@ class UPM_Profiler:
                 "mem_transfer",
                 "kv_load",
             ]:
-                perf_values.append(
-                    str(summary_perf[key].get(perf_key, 0) / 1e6 / executed_times)
-                )
+                perf_values.append(str(summary_perf[key].get(perf_key, 0) / 1e6 / executed_times))
             perf_string = ":".join(perf_values)
 
             energy_values = []
@@ -270,20 +263,14 @@ class UPM_Profiler:
                 summary_time[key] / summary_nexec[key],
                 "(ms)",
             )
-            total_percentage_explained += (
-                summary_time[key] / total_time_explained
-            ) * 100
-        print(
-            "Profiler captures", total_percentage_explained, "% of the total execution"
-        )
+            total_percentage_explained += (summary_time[key] / total_time_explained) * 100
+        print("Profiler captures", total_percentage_explained, "% of the total execution")
         print("Profiler captures", total_time_explained, "ms of the total execution")
         print(summary_time)
 
     def print_log(self):
         print("##### Execution log #####")
-        print(
-            "Start time, exec time, Function, Context, input shape, weights shape, output shape"
-        )
+        print("Start time, exec time, Function, Context, input shape, weights shape, output shape")
         for log in self.log:
             input_shape = "(" + ",".join([str(x) for x in log.input]) + ")"
             weights_shape = "(" + ",".join([str(x) for x in log.weights]) + ")"
@@ -364,10 +351,8 @@ class UPM_Profiler:
 
     def end(self):
         if self.simulator:
-            step_time, step_perf, step_energy, step_transfer_bytes = (
-                self.simulator.simulate_end(
-                    self.forward_input_shape, generated_tokens=(self.n_executions)
-                )
+            step_time, step_perf, step_energy, step_transfer_bytes = self.simulator.simulate_end(
+                self.forward_input_shape, generated_tokens=(self.n_executions)
             )
             self.inference_time += step_time
             self.update_inference_perf(step_perf)
@@ -441,9 +426,7 @@ class UPM_Profiler:
                 "kv_load",
             ]:
                 perf_value = self.sum_perf.get(perf_key, 0)
-                print(
-                    perf_key, (perf_value / 1e6), "(ms)", perf_value / 1e9 / sum_time_s
-                )
+                print(perf_key, (perf_value / 1e6), "(ms)", perf_value / 1e9 / sum_time_s)
 
             if gen_n_executions > 0:
                 print("GENERATION phase")
@@ -455,9 +438,7 @@ class UPM_Profiler:
                     "kv_load",
                 ]:
                     perf_value = self.gen_perf.get(perf_key, 0)
-                    print(
-                        f"{perf_key}: {perf_value / 1e6} ms, {perf_value / 1e9 / gen_time_s}"
-                    )
+                    print(f"{perf_key}: {perf_value / 1e6} ms, {perf_value / 1e9 / gen_time_s}")
 
         if self.options.report_layers:
             self.print_layers_model()
@@ -514,9 +495,7 @@ class UPM_Profiler:
     def forward_end(self, output_shape, context, layer_obj=None):
         self.forward_time_end = time.time_ns()
 
-        weights_shape = torch.Size(
-            [self.layers[layer_obj].dim_in, self.layers[layer_obj].dim_out]
-        )
+        weights_shape = torch.Size([self.layers[layer_obj].dim_in, self.layers[layer_obj].dim_out])
 
         cur_exec_time = self.forward_time_end - self.forward_time_start
         performance = {}
@@ -525,9 +504,7 @@ class UPM_Profiler:
 
         if self.simulator:
             name = self.layers[layer_obj].name
-            if any(
-                isinstance(layer_obj, layer_t) for layer_t in self.functional_layers
-            ):
+            if any(isinstance(layer_obj, layer_t) for layer_t in self.functional_layers):
                 cur_exec_time, performance, energy, transfer_bytes = (
                     self.simulator.simulate_function(
                         self.layers[layer_obj],
@@ -537,14 +514,12 @@ class UPM_Profiler:
                     )
                 )
             else:
-                cur_exec_time, performance, energy, transfer_bytes = (
-                    self.simulator.simulate_layer(
-                        self.layers[layer_obj],
-                        self.forward_input_shape,
-                        layer_obj,
-                        weights_shape,
-                        output_shape,
-                    )
+                cur_exec_time, performance, energy, transfer_bytes = self.simulator.simulate_layer(
+                    self.layers[layer_obj],
+                    self.forward_input_shape,
+                    layer_obj,
+                    weights_shape,
+                    output_shape,
                 )  # or context?
             self.inference_time += cur_exec_time
             self.update_inference_perf(performance)
@@ -552,9 +527,7 @@ class UPM_Profiler:
             self.update_inference_transfer_bytes(transfer_bytes)
 
             self.layers[layer_obj].exec_time += cur_exec_time
-            self.layers[layer_obj].energy = add_dictionaries(
-                self.layers[layer_obj].energy, energy
-            )
+            self.layers[layer_obj].energy = add_dictionaries(self.layers[layer_obj].energy, energy)
             self.layers_start[layer_obj] = self.forward_time_start
             self.layers_end[layer_obj] = self.inference_time
             relative_start_time = self.forward_time_start
@@ -591,9 +564,7 @@ class UPM_Profiler:
             if self.n_executions == 0:
                 if self.simulator:
                     self.simulator.start_gen()
-                    self.simulator.sum_size = (
-                        output_shape[-2] if (len(output_shape) > 1) else 1
-                    )
+                    self.simulator.sum_size = output_shape[-2] if (len(output_shape) > 1) else 1
                 self.summarization_time = self.inference_time
             self.n_executions += 1
             print(f"New token generated ({self.n_executions})", end="\r")
@@ -621,10 +592,8 @@ class UPM_Profiler:
         relative_time = self.start_func - self.start_inference
 
         if self.simulator:
-            cur_exec_time, performance, energy, transfer_bytes = (
-                self.simulator.simulate_function(
-                    function, context, self.func_input_shape, output_shape
-                )
+            cur_exec_time, performance, energy, transfer_bytes = self.simulator.simulate_function(
+                function, context, self.func_input_shape, output_shape
             )
             self.inference_time += cur_exec_time
             self.update_inference_perf(performance)

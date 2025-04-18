@@ -22,6 +22,7 @@ class TinyModel(torch.nn.Module):
         x = torch.nn.functional.softmax(x, dim=0)
         return x
 
+
 @app.command()
 def profile():
     upmem_layers.profiler_init()
@@ -42,6 +43,7 @@ def profile():
     prediction = tinymodel.forward(my_tensor)
     upmem_layers.profiler_end()
     print(prediction)
+
 
 if __name__ == "__main__":
     app()

@@ -44,9 +44,7 @@ def run_tiny_llama_model_with_profiler():
     # Initialize the profiler
     upmem_layers.profiler_init()
     # Load the tiny LLaMA model and tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(
-        "hf-internal-testing/tiny-random-LlamaForCausalLM"
-    )
+    tokenizer = AutoTokenizer.from_pretrained("hf-internal-testing/tiny-random-LlamaForCausalLM")
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", ignored_warning)
         model = AutoModelForCausalLM.from_pretrained(
@@ -56,9 +54,7 @@ def run_tiny_llama_model_with_profiler():
 
     # Prepare input data
     input_text = "Hello, world!"
-    input_token = tokenizer.encode(
-        input_text, return_tensors="pt", return_token_type_ids=False
-    )
+    input_token = tokenizer.encode(input_text, return_tensors="pt", return_token_type_ids=False)
     input_ids = {
         "input_ids": input_token,
         "attention_mask": input_token.new_ones(input_token.shape),

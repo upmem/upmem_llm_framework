@@ -15,7 +15,6 @@ from upmem_llm_framework.utils import add_dictionaries
 
 
 class Simulator:
-
     def __init__(
         self,
         data_type_bytes=2.0,
@@ -53,7 +52,6 @@ class Simulator:
         self.experts_per_token = experts_per_token
 
     def name_to_device(self, full_name: str):
-
         device_name = full_name.split(",")[0].replace("-", "_")
         flags = full_name.split(",")[1] if len(full_name.split(",")) > 1 else ""
 
@@ -104,9 +102,7 @@ class Simulator:
             else:
                 # load KV cache
                 kv_cache = torch.Size([batch_size, self.sum_size, n_columns * 2])
-                step_time, step_perf, step_energy = self.current_device.load_data(
-                    kv_cache
-                )
+                step_time, step_perf, step_energy = self.current_device.load_data(kv_cache)
                 compute_time_ns += step_time
                 performance = add_dictionaries(performance, step_perf)
                 energy_compute = add_dictionaries(energy_compute, step_energy)
@@ -153,7 +149,6 @@ class Simulator:
         return compute_time_ns, performance, energy_compute
 
     def simulate_end(self, input_shape, generated_tokens=1):
-
         time_send_ans_to_host = 0
         perf_send_ans_to_host = {}
         energy_send_ans_to_host = {}
@@ -208,9 +203,7 @@ class Simulator:
         # assume that if the layer is not mapped, it stays in the current device
         if context in self.layer_mapping:
             # print(f"Mapping {context} to {self.layer_mapping[context]}")
-            new_device, gather_at_host, moe = self.name_to_device(
-                self.layer_mapping[context]
-            )
+            new_device, gather_at_host, moe = self.name_to_device(self.layer_mapping[context])
 
             # if new_device != current_device --> pay transfer
             if (
@@ -218,15 +211,12 @@ class Simulator:
                 or gather_at_host
                 or (moe and self.check_moe(context))
             ):
-
                 # if HOST is not current device, transfer to HOST the output from the last layer
                 # we asume the new input is what needs to be written back to host from previous
                 # layer
                 if self.current_device.name != "HOST":
                     time_send_ans_to_host, step_perf, step_energy, step_data = (
-                        self.current_device.host_transfer(
-                            input_shape, direction="to_host"
-                        )
+                        self.current_device.host_transfer(input_shape, direction="to_host")
                     )
                     perf = add_dictionaries(perf, step_perf)
                     energy = add_dictionaries(energy, step_energy)
@@ -254,7 +244,6 @@ class Simulator:
         return time_send_ans_to_host, time_send_ans_from_host, perf, energy, moved_data
 
     def simulate_layer(self, layer, input_shape, layer_obj, weight_shape, output_shape):
-
         time_send_ans_to_host = 0
         time_send_ans_from_host = 0
         compute_time_ns = 0
@@ -290,9 +279,7 @@ class Simulator:
                     perf_transfer_moe,
                     energy_transfer_moe,
                     data_transfer_moe,
-                ) = self.current_device.host_transfer(
-                    transfer_shape, direction="to_host"
-                )
+                ) = self.current_device.host_transfer(transfer_shape, direction="to_host")
                 if self.verbose:
                     print("Last layer of MoE sends back to HOST: ", transfer_shape)
                 time_send_ans_to_host += time_send_ans_to_host_moe
@@ -335,10 +322,7 @@ class Simulator:
         return total_time, total_perf, total_energy, data_transfer
 
     def simulate_function(self, function, context, input_shape, output_shape):
-
-        function_name = (
-            function.__name__ if hasattr(function, "__name__") else function.name
-        )
+        function_name = function.__name__ if hasattr(function, "__name__") else function.name
 
         if self.verbose:
             print(
@@ -383,9 +367,7 @@ class Simulator:
         if hasattr(function, "name") and (
             function.name.endswith("SiLU") or function.name.endswith("SiLUActivation")
         ):
-            return self.current_device.compute_activation_ns(
-                input_shape, activation="SiLU"
-            )
+            return self.current_device.compute_activation_ns(input_shape, activation="SiLU")
         if hasattr(function, "__name__") and function.__name__.endswith("matmul"):
             return self.current_device.compute_matmul_ns(
                 context,

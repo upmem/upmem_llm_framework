@@ -27,14 +27,12 @@ def get_context():
 
 
 class UPM_Module(torch.nn.Module):
-
     def forward(self, x):
         x = super().forward(x)
         return x
 
 
 class UPM_Linear(torch.nn.Linear):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -52,9 +50,7 @@ class UPM_Linear(torch.nn.Linear):
         return x
 
 
-class UPM_NonDynamicallyQuantizableLinear(
-    torch.nn.modules.linear.NonDynamicallyQuantizableLinear
-):
+class UPM_NonDynamicallyQuantizableLinear(torch.nn.modules.linear.NonDynamicallyQuantizableLinear):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -74,7 +70,6 @@ class UPM_NonDynamicallyQuantizableLinear(
 
 
 class UPM_LayerNorm(torch.nn.LayerNorm):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -88,7 +83,6 @@ class UPM_LayerNorm(torch.nn.LayerNorm):
 
 
 class UPM_Embedding(torch.nn.Embedding):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -101,10 +95,7 @@ class UPM_Embedding(torch.nn.Embedding):
         return x
 
 
-class UPM_LlamaRotaryEmbedding(
-    transformers.models.llama.modeling_llama.LlamaRotaryEmbedding
-):
-
+class UPM_LlamaRotaryEmbedding(transformers.models.llama.modeling_llama.LlamaRotaryEmbedding):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -119,7 +110,6 @@ class UPM_LlamaRotaryEmbedding(
 
 
 class UPM_LlamaRMSNorm(transformers.models.llama.modeling_llama.LlamaRMSNorm):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -133,7 +123,6 @@ class UPM_LlamaRMSNorm(transformers.models.llama.modeling_llama.LlamaRMSNorm):
 
 
 class UPM_SiLUActivation(torch.nn.SiLU):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -147,7 +136,6 @@ class UPM_SiLUActivation(torch.nn.SiLU):
 
 
 class UPM_NewGELUActivation(transformers.activations.NewGELUActivation):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -162,14 +150,12 @@ class UPM_NewGELUActivation(transformers.activations.NewGELUActivation):
 
 # Not used in inference
 class UPM_Dropout(torch.nn.Dropout):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
 
 
 class UPM_Conv1d(torch.nn.Conv1d):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -189,7 +175,6 @@ class UPM_Conv2d(torch.nn.Conv2d):
 
 
 class UPM_Conv1D(transformers.pytorch_utils.Conv1D):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -203,7 +188,6 @@ class UPM_Conv1D(transformers.pytorch_utils.Conv1D):
 
 
 class UPM_Softmax(torch.nn.Softmax):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         profiler.add(self, get_context())
@@ -217,7 +201,6 @@ class UPM_Softmax(torch.nn.Softmax):
 
 
 class UPM_Tensor(torch.Tensor):
-
     def transpose(self, dim0, dim1):
         print("MyTranpose with input:", self, "dim0", dim0, "dim1", dim1)
         super().transpose(dim0, dim1)
@@ -247,9 +230,7 @@ def UPM_Matmul(input, other, *, out=None):
     return x
 
 
-__pytorch_scaled_dot_product_attention = (
-    torch.nn.functional.scaled_dot_product_attention
-)
+__pytorch_scaled_dot_product_attention = torch.nn.functional.scaled_dot_product_attention
 
 
 # TODO: here too
@@ -278,7 +259,6 @@ def UPM_Transpose(input, dim0, dim1):
 
 
 def profiler_init():
-
     print(f"Options: {options}")
 
     global profiling, profiler
@@ -288,9 +268,7 @@ def profiler_init():
     # torch library
     torch.nn.Module = UPM_Module
     torch.nn.Linear = UPM_Linear
-    torch.nn.modules.linear.NonDynamicallyQuantizableLinear = (
-        UPM_NonDynamicallyQuantizableLinear
-    )
+    torch.nn.modules.linear.NonDynamicallyQuantizableLinear = UPM_NonDynamicallyQuantizableLinear
     torch.nn.LayerNorm = UPM_LayerNorm
     torch.nn.Embedding = UPM_Embedding
     torch.nn.Dropout = UPM_Dropout
@@ -309,20 +287,12 @@ def profiler_init():
     transformers.activations.ACT2FN["gelu_new"] = (
         UPM_NewGELUActivation  # classes are hardcoded in ACT2FN
     )
-    transformers.activations.ACT2FN["silu"] = (
-        UPM_SiLUActivation  # classes are hardcoded in ACT2FN
-    )
+    transformers.activations.ACT2FN["silu"] = UPM_SiLUActivation  # classes are hardcoded in ACT2FN
     transformers.models.llama.modeling_llama.LlamaRMSNorm = UPM_LlamaRMSNorm
-    transformers.models.llama.modeling_llama.LlamaRotaryEmbedding = (
-        UPM_LlamaRotaryEmbedding
-    )
+    transformers.models.llama.modeling_llama.LlamaRotaryEmbedding = UPM_LlamaRotaryEmbedding
 
-    transformers.models.mixtral.modeling_mixtral.MixtralRMSNorm = (
-        UPM_LlamaRMSNorm  # miXtral models
-    )
-    transformers.models.mistral.modeling_mistral.MistralRMSNorm = (
-        UPM_LlamaRMSNorm  # miStral models
-    )
+    transformers.models.mixtral.modeling_mixtral.MixtralRMSNorm = UPM_LlamaRMSNorm  # miXtral models
+    transformers.models.mistral.modeling_mistral.MistralRMSNorm = UPM_LlamaRMSNorm  # miStral models
 
 
 def profiler_start(

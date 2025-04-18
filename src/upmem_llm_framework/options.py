@@ -24,6 +24,7 @@ class Options:
 
 options = Options()
 
+
 class DataType(str, Enum):
     int4 = "int4"
     int8 = "int8"

@@ -10,9 +10,7 @@ app = typer.Typer(callback=upmem_layers.initialize_profiling_options)
 
 @app.command()
 def profile(
-    hf_token: Annotated[
-        str, typer.Argument(envvar="hf_token", help="Hugging Face API token")
-    ]
+    hf_token: Annotated[str, typer.Argument(envvar="hf_token", help="Hugging Face API token")],
 ):
     upmem_layers.profiler_init()
 
