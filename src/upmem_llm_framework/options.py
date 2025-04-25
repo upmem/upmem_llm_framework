@@ -1,14 +1,17 @@
+"""Option handling for profiling and simulation."""
+
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Annotated
 
 import typer
-from typing_extensions import Annotated
 
 
 @dataclass
 class Options:
+    """Options for profiling and simulation."""
+
     report_layers: bool = False
     report_functions: bool = False
     print_log: bool = False
@@ -16,16 +19,18 @@ class Options:
     simulation: bool = False
     sim_compute: bool = False
     sim_data_type: str = "bfloat16"
-    sim_num_key_value_heads: int = -1
-    sim_sliding_window: int = -1
+    sim_num_key_value_heads: int | None = None
+    sim_sliding_window: int | None = None
     sim_verbose: bool = False
-    extra_archs: Optional[Path] = None
+    extra_archs: Path | None = None
 
 
 options = Options()
 
 
 class DataType(str, Enum):
+    """Data types for simulation."""
+
     int4 = "int4"
     int8 = "int8"
     float16 = "float16"
@@ -34,6 +39,7 @@ class DataType(str, Enum):
 
 
 def initialize_profiling_options(
+    *,
     report_layers: Annotated[
         bool,
         typer.Option(
@@ -44,7 +50,7 @@ def initialize_profiling_options(
         bool,
         typer.Option(
             help="Enable reporting metrics for all executed functions at the end of the forward "
-            + "pass."
+            "pass."
         ),
     ] = False,
     print_log: Annotated[
@@ -57,7 +63,7 @@ def initialize_profiling_options(
         bool,
         typer.Option(
             help="Print a detailed summary of each layer and function executed. For summarization, "
-            + "generation, and both.",
+            "generation, and both.",
         ),
     ] = False,
     simulation: Annotated[
@@ -70,8 +76,8 @@ def initialize_profiling_options(
         bool,
         typer.Option(
             help="Simulate compute intensive operations. Note that some operations are still "
-            + "performed due to constraints in inputs/outputs of other layer/functions. "
-            + "CAUTION: Output tokens will be affected",
+            "performed due to constraints in inputs/outputs of other layer/functions. "
+            "CAUTION: Output tokens will be affected",
         ),
     ] = False,
     sim_data_type: Annotated[
@@ -81,18 +87,18 @@ def initialize_profiling_options(
         ),
     ] = DataType.bfloat16,
     sim_num_key_value_heads: Annotated[
-        int,
+        int | None,
         typer.Option(
             help="When using GQA, this value is used to simulate fetching the correct KV caches.",
         ),
-    ] = -1,
+    ] = None,
     sim_sliding_window: Annotated[
-        int,
+        int | None,
         typer.Option(
             help="When set, a sliding window is simulated according to this value. Note that the "
-            + "real underlying execution will run according to the model parameter.",
+            "real underlying execution will run according to the model parameter.",
         ),
-    ] = -1,
+    ] = None,
     sim_verbose: Annotated[
         bool,
         typer.Option(
@@ -100,12 +106,13 @@ def initialize_profiling_options(
         ),
     ] = False,
     extra_archs: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(
             help="Path to a yaml file containing extra architectures to be used in simulation",
         ),
     ] = None,
-):
+) -> None:
+    """Initialize the options when fed to Typer."""
     options.report_layers = report_layers
     options.report_functions = report_functions
     options.print_log = print_log

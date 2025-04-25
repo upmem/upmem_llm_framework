@@ -1,109 +1,90 @@
-#
-# Copyright (c) 2014-2024 - UPMEM
-# UPMEM S.A.S France property - UPMEM confidential information covered by NDA
-# For UPMEM partner internal use only - no modification allowed without permission of UPMEM
-#
-# This file implements Base_architecture class
-# This class contains a default implementation of the following functions:
-#   - adjust_for_quantization: scales up/down the TFLOPs depending on the quantization choosen
-#   - get_tflops: returns the TFLOPs required in a MxM
-#   - get_moved_data_bytes: returns the required bytes to move in order to do an operation
-#   - load_data: models loading the KV cache
-#   - host_transfer: simulates a data transfer with host in any direction
-#   - compute_ns: simulates the computation of a MxM
-#   - compute_scaled_dot_product_ns: simulates the computation of function scaled_dot_product where,
-#     usually, attention computation occurs
-#   - compute_matmul_ns: simulates the computation of a matmul for self-attention
-#   - compute_activation_ns: simulates an activation layer
-#   - compute_RMSNorm_ns: simulates a RMSNorm layer
-#   - compute_softmax_ns: simulates a softmax operation
-#
-# Note that all simulations returns compute_time_ns, performance_dict, energy_dict:
-#   - compute_time_ns: the simulated time in ns,
-#   - performance_dict: dictionary containing the simulated time in ns for each operation simulated,
-#   - energy_dict: dictionary containing the simulated energy in pJ for each operation simulated.
+"""Implements Base_architecture class.
+
+This class contains a default implementation of the following functions:
+- `adjust_for_quantization`: scales up/down the TFLOPs depending on the quantization choosen
+- `get_tflops`: returns the TFLOPs required in a MxM
+- `get_moved_data_bytes`: returns the required bytes to move in order to do an operation
+- `load_data`: models loading the KV cache
+- `host_transfer`: simulates a data transfer with host in any direction
+- `compute_ns`: simulates the computation of a MxM
+- `compute_scaled_dot_product_ns`: simulates the computation of function scaled_dot_product where,
+  `usually`, attention computation occurs
+- `compute_matmul_ns`: simulates the computation of a matmul for self-attention
+- `compute_activation_ns`: simulates an activation layer
+- `compute_RMSNorm_ns`: simulates a RMSNorm layer
+- `compute_softmax_ns`: simulates a softmax operation
+
+Note that all simulations returns compute_time_ns, performance_dict, energy_dict:
+- `compute_time_ns`: the simulated time in ns,
+- `performance_dict`: dictionary containing the simulated time in ns for each operation simulated,
+- `energy_dict`: dictionary containing the simulated energy in pJ for each operation simulated.
+"""
 
 import math
-from typing import Dict
+import typing
+import warnings
+from dataclasses import dataclass
 
 import torch
 
 from upmem_llm_framework.utils import add_dictionaries
 
 
+@dataclass
 class BaseArchitecture:
-    def __init__(
-        self,
-        active_chips=1,
-        tflops=1,
-        pj_per_tflop=1,
-        host_to_device_bw_GBs=1,
-        device_to_host_bw_GBs=1,
-        # inter_bw               = 1,
-        memory=1,
-        mem_bw_GBs=1,
-        mem_pj_per_bit=1,
-        data_type_bytes=2.0,  # float16
-        # 3000 cycles per row of 2048 elements --> 1.4 cycles / element
-        # assuming 1 GHz, 1.5 ns / element, parallelized accross 4 chips -> 0.37
-        softmax_ns_per_element=0.4,  # ns, considering it cycles in 1GHz config
-        SiLU_ns_per_element=0.6,  # ns, softmax * 1.5
-        # (empiric number based on execution of Llama2-7b)
-        RMSNorm_ns_per_element=1.1,  # ns, softmax * 2.6
-        # (empiric number based on execution of Llama2-7b)
-        # 3000 cycles per row of 2048 elements with 5 TFLOPs of computing power
-        # assuming 1 GHz, 0,000003 s --> 3MOPS per row of 2048 --> 1.5kOPS per element
-        misc_tflops_per_element=1500 / 1e12,
-        sliding_window=-1,
-        num_key_value_heads=-1,
-        verbose=False,
-    ):
-        self.name = ""
-        self.active_chips = active_chips
-        # Compute capabilities
-        self.tflops = tflops
-        self.pj_per_tflop = 0.4
-        # Interface with HOST
-        self.host_to_device_bw_GBs = host_to_device_bw_GBs
-        self.device_to_host_bw_GBs = device_to_host_bw_GBs
-        self.host_to_device_pj_per_bit = 25
-        self.device_to_host_pj_per_bit = 25
-        # self.inter_bw                 = inter_bw
+    """Architectures class.
 
-        # Device memory (shared memory like)
-        self.memory = memory  # unused at the moment
-        self.mem_bw_GBs = mem_bw_GBs
-        self.mem_pj_per_bit = mem_pj_per_bit
-        self.pj_per_tflop = pj_per_tflop
+    This class contains the implementation of the functions
+    that are used to simulate an architecture.
+    """
 
-        self.data_type_bytes = data_type_bytes
+    name: str = ""
+    # Compute capabilities
+    tflops: float = 1
+    pj_per_tflop: float = 1
+    # Interface with HOST
+    host_to_device_bw_GBs: float = 1
+    device_to_host_bw_GBs: float = 1
+    host_to_device_pj_per_bit: float = 25
+    device_to_host_pj_per_bit: float = 25
+    # Device memory (shared memory like)
+    mem_bw_GBs: float = 1
+    mem_pj_per_bit: float = 1
 
-        self.softmax_ns_per_element = softmax_ns_per_element
-        self.RMSNorm_ns_per_element = RMSNorm_ns_per_element
-        self.SiLU_ns_per_element = SiLU_ns_per_element
+    data_type_bytes: float = 2  # float16
+    # 3000 cycles per row of 2048 elements --> 1.4 cycles / element
+    # assuming 1 GHz, 1.5 ns / element, parallelized accross 4 chips -> 0.37
+    softmax_ns_per_element: float = 0.4  # ns, considering it cycles in 1GHz config
+    SiLU_ns_per_element: float = 0.6  # ns, softmax * 1.5
+    # (empiric number based on execution of Llama2-7b)
+    RMSNorm_ns_per_element: float = 1.1  # ns, softmax * 2.6
+    # (empiric number based on execution of Llama2-7b)
+    # 3000 cycles per row of 2048 elements with 5 TFLOPs of computing power
+    # assuming 1 GHz, 0,000003 s --> 3MOPS per row of 2048 --> 1.5kOPS per element
+    misc_tflops_per_element: float = 1500 / 1e12
+    sliding_window: int | None = None
+    num_key_value_heads: int | None = None
+    verbose: bool = False
 
-        self.misc_tflops_per_element = misc_tflops_per_element
-
-        self.sliding_window = sliding_window
-        self.num_key_value_heads = num_key_value_heads
-
-        self.verbose = verbose
-
-    def load_spec(self, name: str, spec: Dict):
-        """Load accelerator specification from a dictionary"""
+    def load_spec(self, name: str, spec: dict) -> None:
+        """Load accelerator specification from a dictionary."""
         self.name = name
         for key, value in spec.items():
             if key == "tflops_int4":
                 continue
             if not hasattr(self, key):
-                raise ValueError(f"Warning: {key} is not a valid attribute for {self.__class__}")
+                msg = f"Warning: {key} is not a valid attribute for {self.__class__}"
+                raise ValueError(msg)
             setattr(self, key, value)
         if "tflops_int4" in spec and self.data_type_bytes == 0.5:
             self.tflops = spec["tflops_int4"]
 
-    # Defined TFLOPS are defined for float16,
-    # assume that performance is doubled if data type is demoted
-    def adjust_for_quantization(self):
+    def adjust_for_quantization(self) -> None:
+        """Adjust the energy consumption based on the quantization.
+
+        Defined TFLOPS are defined for float16,
+        assumes that performance is doubled if data type is demoted.
+        """
         ratio = 2 / self.data_type_bytes  # Assume pj_per_tflop corresponds to float16
         self.pj_per_tflop = self.pj_per_tflop / ratio
         # self.tflops = self.tflops * (2 / self.data_type_bytes)
@@ -112,14 +93,14 @@ class BaseArchitecture:
         # self.RMSNorm_ns_per_element = self.RMSNorm_ns_per_element / ratio
         # self.SiLU_ns_per_element = self.SiLU_ns_per_element / ratio
 
-    def get_tflops_Linear(self, input_shape, weight_shape):
+    def _get_tflops_linear(self, input_shape: torch.Size, weight_shape: torch.Size) -> float:
         out_features = weight_shape[0]
-        tflops = input_shape.numel() * out_features * 2 / 1e12
-
-        return tflops
+        return input_shape.numel() * out_features * 2 / 1e12
 
     # https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
-    def get_tflops_Conv2d(self, input_shape, layer, weight_shape):
+    def _get_tflops_conv2d(
+        self, input_shape: torch.Size, layer: torch.nn.Conv2d, weight_shape: torch.Size
+    ) -> float:
         batch_size = input_shape[-4] if (len(input_shape) > 3) else 1
         n_channels = input_shape[-3] if (len(input_shape) > 2) else 1
         n_height = input_shape[-2] if (len(input_shape) > 1) else 1
@@ -127,6 +108,10 @@ class BaseArchitecture:
 
         stride = layer.stride
         padding = layer.padding
+
+        if isinstance(padding, str):
+            err = f"Padding type {padding} not implemented. Please use int or tuple."
+            raise NotImplementedError(err)
 
         n_height = n_height + 2 * (padding[0] if isinstance(padding, tuple) else padding)
         n_width = n_width + 2 * (padding[1] if isinstance(padding, tuple) else padding)
@@ -154,37 +139,47 @@ class BaseArchitecture:
         # TFLOPS when applying once the kernel
         tflops_kernel = (2 * batch_size * n_channels * weight_shape[1] * weight_shape[0]) / 1e12
 
-        tflops = tflops_kernel * width_times * height_times
+        return tflops_kernel * width_times * height_times
 
-        return tflops
-
-    def get_tflops_LayerNorm(self, input_shape):
+    def _get_tflops_layernorm(self, input_shape: torch.Size) -> float:
         batch_size = input_shape[-4] if (len(input_shape) > 3) else 1
         n_heads = input_shape[-3] if (len(input_shape) > 2) else 1
         n_rows = input_shape[-2] if (len(input_shape) > 1) else 1
         n_columns = input_shape[-1]
 
-        tflops = batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
-
-        return tflops
+        return batch_size * n_heads * n_rows * n_columns * self.misc_tflops_per_element
 
     # TODO: see DeepSpeed implementation
     # def _attn_flops_compute
 
-    def get_tflops(self, input_shape, layer, weight_shape):
-        if issubclass(torch.nn.Conv2d, type(layer)):
-            tflops = self.get_tflops_Conv2d(input_shape, layer, weight_shape)
-        elif issubclass(torch.nn.LayerNorm, type(layer)):
-            tflops = self.get_tflops_LayerNorm(input_shape)
+    def _get_tflops(
+        self, input_shape: torch.Size, layer: torch.nn.Module, weight_shape: torch.Size
+    ) -> float:
+        if isinstance(layer, torch.nn.Conv2d):
+            tflops = self._get_tflops_conv2d(
+                input_shape, typing.cast("torch.nn.Conv2d", layer), weight_shape
+            )
+        elif isinstance(layer, torch.nn.LayerNorm):
+            tflops = self._get_tflops_layernorm(input_shape)
         else:
             # Treat everything else as Linear
-            tflops = self.get_tflops_Linear(input_shape, weight_shape)
-            # print ("get_tflops not defined for layer: ", type(layer))
-            # sys.exit(-1)
+            tflops = self._get_tflops_linear(input_shape, weight_shape)
+            if not isinstance(layer, torch.nn.Linear):
+                warnings.warn(
+                    f"get_tflops not defined for layer: {type(layer)}. Using Linear as default.",
+                    stacklevel=2,
+                )
 
         return tflops
 
-    def get_moved_data_bytes(self, input_shape, weight_shape, load_input=False, load_weight=True):
+    def _get_moved_data_bytes(
+        self,
+        input_shape: torch.Size,
+        weight_shape: torch.Size,
+        *,
+        load_input: bool = False,
+        load_weight: bool = True,
+    ) -> float:
         batch_size = input_shape[-4] if (len(input_shape) > 3) else 1
         n_heads = input_shape[-3] if (len(input_shape) > 2) else 1
         n_rows = input_shape[-2] if (len(input_shape) > 1) else 1
@@ -192,16 +187,18 @@ class BaseArchitecture:
 
         weight_size = weight_shape[1] * weight_shape[0] if load_weight else 0
         input_size = batch_size * n_heads * n_rows * n_columns if load_input else 0
-        # output_size = batch_size * n_rows * weight_shape[1]
-        return self.data_type_bytes * (weight_size + input_size)  # + output_size)
+        return self.data_type_bytes * (weight_size + input_size)
 
-    # KV cache load
-    def load_data(self, input_shape):
+    def load_data(
+        self, input_shape: torch.Size
+    ) -> tuple[float, dict[str, float], dict[str, float]]:
+        """Compute metrics for KV cache load."""
         batch_size = input_shape[-4] if (len(input_shape) > 3) else 1
         n_heads = input_shape[-3] if (len(input_shape) > 2) else 1
         n_rows = input_shape[-2] if (len(input_shape) > 1) else 1
         n_columns = input_shape[-1]
 
+        # TODO: read the data type from the model
         # data_size_bytes = self.data_type_bytes * (
         #     batch_size * n_rows * n_heads * n_columns
         # )
@@ -217,19 +214,16 @@ class BaseArchitecture:
 
         if self.verbose:
             print(
-                "Load time for input_shape:",
-                input_shape,
-                "=",
-                transfer_time_ns,
-                "(ns) with",
-                energy,
-                "pj",
-                performance,
+                f"Load time for input_shape: {input_shape} = {transfer_time_ns} (ns) with "
+                f"{energy} pj {performance}"
             )
 
         return transfer_time_ns, performance, energy
 
-    def host_transfer(self, input_shape, direction="to_device", generated_tokens=1):
+    def host_transfer(
+        self, input_shape: torch.Size, *, direction: str = "to_device", generated_tokens: int = 1
+    ) -> tuple[float, dict[str, float], dict[str, float], dict[str, float]]:
+        """Compute metrics for host <-> device transfer."""
         batch_size = input_shape[-4] if (len(input_shape) > 3) else 1
         n_heads = input_shape[-3] if (len(input_shape) > 2) else 1
         n_rows = input_shape[-2] if (len(input_shape) > 1) else 1
@@ -265,10 +259,19 @@ class BaseArchitecture:
 
         return transfer_time_ns, performance, energy, moved_data
 
-    def compute_ns(self, input_shape, layer_obj, weight_shape, load_input=False, load_weight=True):
-        tflops = self.get_tflops(input_shape, layer_obj, weight_shape)
+    def compute_ns(
+        self,
+        input_shape: torch.Size,
+        layer_obj: torch.nn.Module,
+        weight_shape: torch.Size,
+        *,
+        load_input: bool = False,
+        load_weight: bool = True,
+    ) -> tuple[float, dict[str, float], dict[str, float]]:
+        """Compute metrics for a layer."""
+        tflops = self._get_tflops(input_shape, layer_obj, weight_shape)
 
-        data_size_bytes = self.get_moved_data_bytes(
+        data_size_bytes = self._get_moved_data_bytes(
             input_shape, weight_shape, load_input=load_input, load_weight=load_weight
         )
 
@@ -305,13 +308,13 @@ class BaseArchitecture:
 
     def compute_scaled_dot_product_ns(
         self,
-        context,
-        key_shape,  # same dimensions as value_shape
-        output_shape,
-        use_kv_cache=True,
-        summarization=False,
-        sum_size=0,
-    ):
+        key_shape: torch.Size,  # same dimensions as value_shape
+        output_shape: torch.Size,
+        *,
+        use_kv_cache: bool = True,
+        summarization: bool = False,
+    ) -> tuple[float, dict[str, float], dict[str, float]]:
+        """Compute metrics for scaled dot product attention."""
         batch_size = key_shape[-4] if (len(key_shape) > 3) else 1
         n_heads = key_shape[-3] if (len(key_shape) > 2) else 1
         n_rows = key_shape[-2] if (len(key_shape) > 1) else 1  # already concatenated!
@@ -328,10 +331,8 @@ class BaseArchitecture:
         # Load KV cache if GENeration and kv cache is enabled
         # Only K is required for next step
         if not summarization and use_kv_cache:
-            if self.sliding_window != -1:
-                n_rows = self.sliding_window
-            if self.num_key_value_heads != -1:
-                n_heads = self.num_key_value_heads
+            n_rows = self.sliding_window or n_rows
+            n_heads = self.num_key_value_heads or n_heads
 
             k_cache = torch.Size([batch_size, n_heads, n_rows, n_columns])
             load_k_time, load_k_perf, load_k_energy = self.load_data(k_cache)
@@ -389,12 +390,14 @@ class BaseArchitecture:
 
     def compute_matmul_ns(
         self,
-        context,
-        shape_a,
-        shape_b,
-        summarization=False,
-        sum_size=0,
-    ):
+        context: str,
+        shape_a: torch.Size,
+        shape_b: torch.Size,
+        *,
+        summarization: bool = False,
+        sum_size: int = 0,
+    ) -> tuple[float, dict[str, float], dict[str, float]]:
+        """Compute metrics for matmul."""
         batch_size = shape_a[-4] if (len(shape_a) > 3) else 1
         n_heads = shape_a[-3] if (len(shape_a) > 2) else 1
         n_rows = shape_a[-2] if (len(shape_a) > 1) else 1
@@ -404,13 +407,12 @@ class BaseArchitecture:
         performance = {}
         energy = {}
 
-        if context == "attn_weights":
-            if not summarization:
-                kv_cache = torch.Size([batch_size, n_heads, sum_size, n_columns * 2])
-                step_time, step_perf, step_energy = self.load_data(kv_cache)
-                compute_time_ns += step_time
-                performance = add_dictionaries(performance, step_perf)
-                energy = add_dictionaries(energy, step_energy)
+        if context == "attn_weights" and not summarization:
+            kv_cache = torch.Size([batch_size, n_heads, sum_size, n_columns * 2])
+            step_time, step_perf, step_energy = self.load_data(kv_cache)
+            compute_time_ns += step_time
+            performance = add_dictionaries(performance, step_perf)
+            energy = add_dictionaries(energy, step_energy)
 
         step_time, step_perf, step_energy = self.compute_ns(
             shape_a,
@@ -429,7 +431,10 @@ class BaseArchitecture:
 
         return compute_time_ns, performance, energy
 
-    def compute_activation_ns(self, data_shape, activation="SiLU"):
+    def compute_activation_ns(
+        self, data_shape: torch.Size, activation: str = "SiLU"
+    ) -> tuple[float, dict[str, float], dict[str, float]]:
+        """Compute metrics for activation function."""
         batch_size = data_shape[-4] if (len(data_shape) > 3) else 1
         n_heads = data_shape[-3] if (len(data_shape) > 2) else 1
         n_rows = data_shape[-2] if (len(data_shape) > 1) else 1
@@ -453,7 +458,10 @@ class BaseArchitecture:
 
         return compute_time_ns, performance, energy
 
-    def compute_RMSNorm_ns(self, data_shape, dimension):
+    def compute_rmsnorm_ns(
+        self, data_shape: torch.Size, dimension: int
+    ) -> tuple[float, dict[str, float], dict[str, float]]:
+        """Compute metrics for RMSNorm function."""
         batch_size = data_shape[-4] if (len(data_shape) > 3) else 1
         n_heads = data_shape[-3] if (len(data_shape) > 2) else 1
         n_rows = data_shape[-2] if (len(data_shape) > 1) else 1
@@ -466,11 +474,14 @@ class BaseArchitecture:
         energy = {"compute": tflops * self.pj_per_tflop}
 
         if self.verbose:
-            print("Computing RMSNorm:", data_shape, "in", compute_time_ns, "with", energy)
+            print(f"Computing RMSNorm: {data_shape} in {compute_time_ns} with {energy}")
 
         return compute_time_ns, performance, energy
 
-    def compute_softmax_ns(self, data_shape):
+    def compute_softmax_ns(
+        self, data_shape: torch.Size
+    ) -> tuple[float, dict[str, float], dict[str, float]]:
+        """Compute metrics for softmax function."""
         batch_size = data_shape[-4] if (len(data_shape) > 3) else 1
         n_heads = data_shape[-3] if (len(data_shape) > 2) else 1
         n_rows = data_shape[-2] if (len(data_shape) > 1) else 1
@@ -483,6 +494,6 @@ class BaseArchitecture:
         energy = {"compute": tflops * self.pj_per_tflop}
 
         if self.verbose:
-            print("Computing softmax:", data_shape, "in", compute_time_ns, "with", energy)
+            print(f"Computing softmax: {data_shape} in {compute_time_ns} with {energy}")
 
         return compute_time_ns, performance, energy

@@ -1,127 +1,126 @@
-#
-# Copyright (c) 2014-2024 - UPMEM
-# UPMEM S.A.S France property - UPMEM confidential information covered by NDA
-# For UPMEM partner internal use only - no modification allowed without permission of UPMEM
-#
-# This file implements all profiling related classes and functions
+"""Implements all profiling related classes and functions."""
 
 import sys
 import time
 from collections import OrderedDict
-from typing import Mapping, Callable, Tuple
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 
 import torch
-from torch.nn import Linear, SiLU, LayerNorm, Embedding, Dropout, Softmax, Conv2d
-from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding
+from torch.nn import Conv2d, Dropout, Embedding, LayerNorm, Linear, SiLU, Softmax
 from transformers.activations import NewGELUActivation
+from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding
 from transformers.pytorch_utils import Conv1D
 
+from upmem_llm_framework.options import Options
 from upmem_llm_framework.simulator import Simulator
 from upmem_llm_framework.utils import add_dictionaries
 
 
-class layer_profile:
-    def __init__(self, uniq_id, name, n_layer, context, dim_in, dim_out, obj=None):
-        self.id = uniq_id
-        self.name = name
-        self.n_layer = n_layer
-        self.context = context
-        self.dim_in = dim_in
-        self.dim_out = dim_out
-        self.exec_time = 0
-        self.exec_nums = 0
-        self.energy = {}
-        self.obj = obj
+@dataclass
+class LayerProfile:
+    """Class to store profiling information for a layer."""
+
+    id: int
+    name: str
+    n_layer: int
+    context: str
+    dim_in: int
+    dim_out: int
+    exec_time: float = 0
+    exec_nums: int = 0
+    energy: dict = field(default_factory=dict)
+    obj: torch.nn.Module | None = None
 
 
-class layer_log:
-    def __init__(
-        self,
-        uniq_id,
-        name,
-        context,
-        summarization,
-        start_time,
-        input,
-        weights,
-        output,
-        exec_time_ms,
-        performance,
-        energy_pj,
-        transfer_bytes,
-    ):
-        self.id = uniq_id
-        self.name = name
-        self.context = context
-        self.summarization = summarization
-        self.start_time = start_time
-        self.input = input
-        self.weights = weights
-        self.output = output
-        self.exec_time_ms = exec_time_ms
-        self.performance = performance
-        self.energy = energy_pj
-        self.transfer_bytes = transfer_bytes
+@dataclass
+class LayerLog:
+    """Class to store profiling information for a layer."""
+
+    id: int
+    name: str
+    context: str
+    summarization: bool
+    start_time: float
+    input: torch.Size
+    weights: torch.Size
+    output: torch.Size
+    exec_time_ms: float
+    performance: dict[str, float]
+    energy: dict[str, float]
+    transfer_bytes: dict[str, float]
 
 
-class UPM_Profiler:
-    layer_dimensions: Mapping[type, Callable[[torch.nn.Module], Tuple[int, int]]] = {
-        Linear: (lambda l: (l.in_features, l.out_features)),
-        NewGELUActivation: (lambda l: (1, 1)),
-        SiLU: (lambda l: (1, 1)),
-        LlamaRMSNorm: (lambda l: (l.weight.size()[0], l.weight.size()[0])),
-        LlamaRotaryEmbedding: (lambda l: (1, 1)),
-        LayerNorm: (lambda l: (1, 1)),
-        Embedding: (lambda l: (1, 1)),
-        Dropout: (lambda l: (1, 1)),
-        Softmax: (lambda l: (l.dim, l.dim)),
-        Conv1D: (lambda l: (l.weight.shape[0], l.weight.shape[1])),
-        Conv2d: (lambda l: (l.kernel_size[0], l.kernel_size[1])),
+@dataclass
+class UPMProfiler:
+    """Class to profile the execution of a model."""
+
+    options: Options
+    n_layers: int = 0
+    n_executions: int = 0
+    layers: dict[torch.nn.Module | Callable, LayerProfile] = field(default_factory=dict)
+    functions: dict[str, LayerProfile] = field(default_factory=dict)
+
+    sim_compute: bool = False
+    sim_sliding_window: int | None = None
+    sim_num_key_value_heads: int | None = None
+    sim_data_type: str = "float16"
+    sim_data_type_bytes: float = 2.0
+    simulator: Simulator | None = None
+
+    start_inference: float = field(default_factory=time.time_ns)
+    inference_time: float = 0
+    summarization_time: float = 0
+    sum_perf: dict[str, float] = field(default_factory=dict)
+    gen_perf: dict[str, float] = field(default_factory=dict)
+    sum_energy: dict[str, float] = field(default_factory=dict)
+    gen_energy: dict[str, float] = field(default_factory=dict)
+    sum_transfer_bytes: dict[str, float] = field(default_factory=dict)
+    gen_transfer_bytes: dict[str, float] = field(default_factory=dict)
+
+    last_layer: str = "lm_head"
+    batch_size: int = 1
+
+    layers_start: dict[torch.nn.Module, float] = field(default_factory=dict)
+    layers_end: dict[torch.nn.Module, float] = field(default_factory=dict)
+    log: list[LayerLog] = field(default_factory=list)
+
+    forward_input_shape: torch.Size = field(default_factory=torch.Size)
+    forward_time_start: float = 0
+    forward_time_end: float = 0
+
+    func_input_shape: torch.Size = field(default_factory=torch.Size)
+    start_func: float = 0
+    end_func: float = 0
+
+    @staticmethod
+    def _fixed_layer_dim(layer: torch.nn.Module) -> tuple[int, int]:
+        """Return a constant size for the layer."""
+        del layer
+        return (1, 1)
+
+    layer_dimensions: Mapping[type, Callable[[torch.nn.Module], tuple[int, int]]] = {
+        Linear: (lambda layer: (layer.in_features, layer.out_features)),
+        NewGELUActivation: _fixed_layer_dim,
+        SiLU: _fixed_layer_dim,
+        LlamaRMSNorm: (lambda layer: (layer.weight.size()[0], layer.weight.size()[0])),
+        LlamaRotaryEmbedding: _fixed_layer_dim,
+        LayerNorm: _fixed_layer_dim,
+        Embedding: _fixed_layer_dim,
+        Dropout: _fixed_layer_dim,
+        Softmax: (lambda layer: (layer.dim, layer.dim)),
+        Conv1D: (lambda layer: (layer.weight.shape[0], layer.weight.shape[1])),
+        Conv2d: (lambda layer: (layer.kernel_size[0], layer.kernel_size[1])),
     }
 
-    functional_layers = {LlamaRMSNorm, SiLU}
+    functional_layers = (LlamaRMSNorm, SiLU)
 
-    def __init__(self, options):
-        self.n_layers = 0
-        self.n_executions = 0
-        self.layers = {}
-        self.functions = {}
+    def __post_init__(self) -> None:
+        """Initialize the profiler with the given options."""
+        self.set_options(self.options)
 
-        self.options = options
-        self.sim_compute = False
-        self.sim_sliding_window = -1
-        self.sim_num_key_value_heads = 8
-        self.sim_data_type = "float16"
-        self.sim_data_type_bytes = 2.0
-        self.simulator = None
-        self.set_options(options)
-
-        self.start_inference = time.time_ns()
-        self.inference_time = 0
-        self.summarization_time = 0
-        self.sum_perf = {}
-        self.gen_perf = {}
-        self.sum_energy = {}
-        self.gen_energy = {}
-        self.sum_transfer_bytes = {}
-        self.gen_transfer_bytes = {}
-
-        self.last_layer = "lm_head"
-        self.batch_size = 1
-
-        self.layers_start = {}
-        self.layers_end = {}
-        self.log = []
-
-        self.forward_input_shape = None
-        self.forward_time_start = 0
-        self.forward_time_end = 0
-
-        self.func_input_shape = None
-        self.start_func = 0
-        self.end_func = 0
-
-    def set_options(self, options):
+    def set_options(self, options: Options) -> None:
+        """Set the options for the profiler."""
         self.options = options
         # simulation related
         self.sim_compute = options.sim_compute
@@ -136,11 +135,11 @@ class UPM_Profiler:
             "float16": 2.0,
             "bfloat16": 2.0,
             "float32": 4.0,
-        }.get(self.sim_data_type)
+        }.get(self.sim_data_type) or self.sim_data_type_bytes
 
-        self.simulator = self.create_arch_simulator() if options.simulation else None
+        self.simulator = self._create_arch_simulator() if options.simulation else None
 
-    def create_arch_simulator(self):
+    def _create_arch_simulator(self) -> Simulator:
         return Simulator(
             data_type_bytes=self.sim_data_type_bytes,
             sliding_window=self.sim_sliding_window,
@@ -148,7 +147,7 @@ class UPM_Profiler:
             verbose=self.options.sim_verbose,
         )
 
-    def print_layers_model(self):
+    def _print_layers_model(self) -> None:
         print("##### Layers of Model in order of creation #####")
         print(
             "Layer ID (creation order), Context, Function, Dimensions (rows x columns), "
@@ -156,15 +155,12 @@ class UPM_Profiler:
         )
         for layer in self.layers.values():
             print(
-                f"{str(layer.id)},"
-                f"{layer.context},"
-                f"{layer.name},"
-                f"({layer.dim_in}x{layer.dim_out}),"
-                f"{layer.exec_nums},"
+                f"{layer.id}, {layer.context}, {layer.name}, "
+                f"({layer.dim_in}x{layer.dim_out}), {layer.exec_nums}, "
                 f"{layer.exec_time / self.n_executions / 1e6}"
             )
 
-    def print_functions_model(self):
+    def _print_functions_model(self) -> None:
         print("##### Functions called by the Model in order of calling #####")
         print(
             "Function name, Context, Dimensions in (columns), Dimensions out (columns), "
@@ -172,15 +168,13 @@ class UPM_Profiler:
         )
         for name, func in self.functions.items():
             print(
-                f"{str(name)},"
-                f"{func.context},"
-                f"({func.dim_in}),"
-                f"({func.dim_out}),"
-                f"{func.exec_nums},"
-                f"{func.exec_time / 1e6}"
+                f"{name}, {func.context}, ({func.dim_in}), ({func.dim_out}), "
+                f"{func.exec_nums}, {func.exec_time / 1e6}"
             )
 
-    def print_log_summary(self, show_summarization=False, show_all=False):
+    def _print_log_summary(
+        self, *, show_summarization: bool = False, show_all: bool = False
+    ) -> None:
         phase = "Generation"
         if show_summarization:
             phase = "Summarization"
@@ -202,7 +196,7 @@ class UPM_Profiler:
             if not show_all and show_summarization and not log.summarization:
                 continue
             ctxt = log.name + ":" + log.context
-            if not ctxt in summary_time.keys():
+            if ctxt not in summary_time:
                 name_ctxt.append(ctxt)
             summary_nexec[ctxt] = 1 + summary_nexec.get(ctxt, 0)
             summary_time[ctxt] = log.exec_time_ms + summary_time.get(ctxt, 0)
@@ -223,23 +217,29 @@ class UPM_Profiler:
             "host_to_device(mJ):device_to_host(mJ):main_mem(mJ):compute(mJ)"
         )
         for key in name_ctxt:
-            perf_values = []
-            for perf_key in [
-                "host_to_device",
-                "device_to_host",
-                "compute",
-                "mem_transfer",
-                "kv_load",
-            ]:
-                perf_values.append(str(summary_perf[key].get(perf_key, 0) / 1e6 / executed_times))
+            perf_values = [
+                str(summary_perf[key].get(perf_key, 0) / 1e6 / executed_times)
+                for perf_key in (
+                    "host_to_device",
+                    "device_to_host",
+                    "compute",
+                    "mem_transfer",
+                    "kv_load",
+                )
+            ]
             perf_string = ":".join(perf_values)
 
-            energy_values = []
-            for ene_key in ["host_to_device", "device_to_host", "main_mem", "compute"]:
-                energy_values.append(
-                    str(summary_energy[key].get(ene_key, 0) / 1e6 / executed_times)
+            energy_values = [
+                str(summary_energy[key].get(ene_key, 0) / 1e6 / executed_times)
+                for ene_key in (
+                    "host_to_device",
+                    "device_to_host",
+                    "main_mem",
+                    "compute",
                 )
+            ]
             energy_string = ":".join(energy_values)
+
             print(
                 key,
                 input_shapes[key],
@@ -254,21 +254,16 @@ class UPM_Profiler:
         total_percentage_explained = 0
         for key in name_ctxt:
             print(
-                key,
-                "explains",
-                (summary_time[key] / total_time_explained) * 100,
-                "% of the total inference time (num. executions:",
-                summary_nexec[key],
-                ") average time:",
-                summary_time[key] / summary_nexec[key],
-                "(ms)",
+                f"{key} explains {(summary_time[key] / total_time_explained) * 100} % of the total "
+                f"inference time (num. executions: {summary_nexec[key]}) "
+                f"average time: {summary_time[key] / summary_nexec[key]} (ms)",
             )
             total_percentage_explained += (summary_time[key] / total_time_explained) * 100
         print("Profiler captures", total_percentage_explained, "% of the total execution")
         print("Profiler captures", total_time_explained, "ms of the total execution")
         print(summary_time)
 
-    def print_log(self):
+    def _print_log(self) -> None:
         print("##### Execution log #####")
         print("Start time, exec time, Function, Context, input shape, weights shape, output shape")
         for log in self.log:
@@ -286,43 +281,43 @@ class UPM_Profiler:
                 output_shape,
             )
 
-    def update_inference_perf(self, step_perf):
-        if self.simulator.sum:
-            for key in step_perf.keys():
-                self.sum_perf[key] = self.sum_perf.get(key, 0) + step_perf[key]
+    def _update_inference_perf(
+        self, step_perf: dict[str, float], *, summarization_phase: bool
+    ) -> None:
+        if summarization_phase:
+            self.sum_perf = add_dictionaries(self.sum_perf, step_perf)
         else:
-            for key in step_perf.keys():
-                self.gen_perf[key] = self.gen_perf.get(key, 0) + step_perf[key]
+            self.gen_perf = add_dictionaries(self.gen_perf, step_perf)
 
-    def update_inference_energy(self, step_energy):
-        if self.simulator.sum:
-            for key in step_energy.keys():
-                self.sum_energy[key] = self.sum_energy.get(key, 0) + step_energy[key]
+    def _update_inference_energy(
+        self, step_energy: dict[str, float], *, summarization_phase: bool
+    ) -> None:
+        if summarization_phase:
+            self.sum_energy = add_dictionaries(self.sum_energy, step_energy)
         else:
-            for key in step_energy.keys():
-                self.gen_energy[key] = self.gen_energy.get(key, 0) + step_energy[key]
+            self.gen_energy = add_dictionaries(self.gen_energy, step_energy)
 
-    def update_inference_transfer_bytes(self, step_transfer_bytes):
-        if self.simulator.sum:
-            for key in step_transfer_bytes.keys():
-                self.sum_transfer_bytes[key] = (
-                    self.sum_transfer_bytes.get(key, 0) + step_transfer_bytes[key]
-                )
+    def _update_inference_transfer_bytes(
+        self, step_transfer_bytes: dict[str, float], *, summarization_phase: bool
+    ) -> None:
+        if summarization_phase:
+            self.sum_transfer_bytes = add_dictionaries(self.sum_transfer_bytes, step_transfer_bytes)
         else:
-            for key in step_transfer_bytes.keys():
-                self.gen_transfer_bytes[key] = (
-                    self.gen_transfer_bytes.get(key, 0) + step_transfer_bytes[key]
-                )
+            self.gen_transfer_bytes = add_dictionaries(self.gen_transfer_bytes, step_transfer_bytes)
 
     def start(
         self,
-        layer_mapping=None,
-        layer_attn_ctxt="",
-        last_layer="lm_head",
-        batch_size=1,
-        moe_end="",
-        experts_per_token=2,
-    ):
+        layer_mapping: dict[str, str] | None = None,
+        layer_attn_ctxt: str = "",
+        last_layer: str = "lm_head",
+        batch_size: int = 1,
+        moe_end: str = "",
+        experts_per_token: int = 2,
+    ) -> None:
+        """Start the profiler."""
+        if layer_mapping is None:
+            layer_mapping = {}
+
         self.start_inference = time.time_ns()
         self.n_executions = 0
         self.inference_time = 0
@@ -349,21 +344,25 @@ class UPM_Profiler:
                 experts_per_token=experts_per_token,
             )
 
-    def end(self):
+    def end(self) -> None:
+        """End the profiler."""
         if self.simulator:
             step_time, step_perf, step_energy, step_transfer_bytes = self.simulator.simulate_end(
                 self.forward_input_shape, generated_tokens=(self.n_executions)
             )
             self.inference_time += step_time
-            self.update_inference_perf(step_perf)
-            self.update_inference_energy(step_energy)
-            self.update_inference_transfer_bytes(step_transfer_bytes)
+            summarization_phase = self.simulator.sum
+            self._update_inference_perf(step_perf, summarization_phase=summarization_phase)
+            self._update_inference_energy(step_energy, summarization_phase=summarization_phase)
+            self._update_inference_transfer_bytes(
+                step_transfer_bytes, summarization_phase=summarization_phase
+            )
         else:
             self.inference_time = time.time_ns() - self.start_inference
 
         inference_time_sec = self.inference_time / 1e9
-        sum_energy_mJ = 0
-        gen_energy_mJ = 0
+        sum_energy_mj = 0
+        gen_energy_mj = 0
         sum_time_s = self.summarization_time / 1e9
         gen_time_s = inference_time_sec - sum_time_s
         gen_n_executions = self.n_executions - 1
@@ -392,9 +391,9 @@ class UPM_Profiler:
             for key, energy in self.sum_energy.items():
                 energy_mj = energy / 1e9
                 print(f"Energy in {key}: {energy_mj} mJ")
-                sum_energy_mJ += energy / 1e9
-            print(f"Energy: {sum_energy_mJ} mJ")
-            print(f"Power: {sum_energy_mJ / 1e3 / sum_time_s} W")
+                sum_energy_mj += energy / 1e9
+            print(f"Energy: {sum_energy_mj} mJ")
+            print(f"Power: {sum_energy_mj / 1e3 / sum_time_s} W")
 
             if gen_n_executions > 0:
                 print("GENERATION summary")
@@ -409,12 +408,12 @@ class UPM_Profiler:
                         f"Energy in {key}: {energy_mj} mJ, "
                         f"mJ/token: {energy_mj / gen_n_executions / self.batch_size}"
                     )
-                    gen_energy_mJ += energy_mj
+                    gen_energy_mj += energy_mj
                 print(
-                    f"Energy: {gen_energy_mJ} mJ, "
-                    f"mJ/token: {gen_energy_mJ / gen_n_executions / self.batch_size}"
+                    f"Energy: {gen_energy_mj} mJ, "
+                    f"mJ/token: {gen_energy_mj / gen_n_executions / self.batch_size}"
                 )
-                print(f"Power: {gen_energy_mJ / 1e3 / gen_time_s} W")
+                print(f"Power: {gen_energy_mj / 1e3 / gen_time_s} W")
 
             print("Execution time breakdown (ms / %)")
             print("SUMMARIZATION phase")
@@ -441,22 +440,23 @@ class UPM_Profiler:
                     print(f"{perf_key}: {perf_value / 1e6} ms, {perf_value / 1e9 / gen_time_s}")
 
         if self.options.report_layers:
-            self.print_layers_model()
+            self._print_layers_model()
 
         if self.options.report_functions:
-            self.print_functions_model()
+            self._print_functions_model()
 
         if self.options.print_log:
-            self.print_log()
+            self._print_log()
 
         if self.options.print_log_summary:
-            self.print_log_summary()
-            self.print_log_summary(show_summarization=True)
-            self.print_log_summary(show_all=True)
+            self._print_log_summary()
+            self._print_log_summary(show_summarization=True)
+            self._print_log_summary(show_all=True)
 
         print("##### END UPMEM PROFILER OUTPUT #####")
 
-    def add(self, layer, context):
+    def add(self, layer: torch.nn.Module, context: str) -> None:
+        """Add a layer to the profiler."""
         layer_type = type(layer)
         dim_in, dim_out = next(
             (
@@ -473,7 +473,7 @@ class UPM_Profiler:
 
         name_layer = layer_type.__name__
 
-        self.layers[layer] = layer_profile(
+        self.layers[layer] = LayerProfile(
             self.n_layers,
             name_layer,
             self.n_layers,
@@ -484,7 +484,8 @@ class UPM_Profiler:
         )
         self.n_layers += 1
 
-    def forward_start(self, input_shape):
+    def forward_start(self, input_shape: torch.Size) -> None:
+        """Start profiling a forward pass."""
         self.forward_input_shape = input_shape
 
         if self.simulator:
@@ -492,7 +493,10 @@ class UPM_Profiler:
         else:
             self.forward_time_start = time.time_ns()
 
-    def forward_end(self, output_shape, context, layer_obj=None):
+    def forward_end(
+        self, output_shape: torch.Size, context: str, layer_obj: torch.nn.Module
+    ) -> None:
+        """End profiling a forward pass."""
         self.forward_time_end = time.time_ns()
 
         weights_shape = torch.Size([self.layers[layer_obj].dim_in, self.layers[layer_obj].dim_out])
@@ -503,7 +507,6 @@ class UPM_Profiler:
         relative_start_time = self.forward_time_start - self.start_inference
 
         if self.simulator:
-            name = self.layers[layer_obj].name
             if any(isinstance(layer_obj, layer_t) for layer_t in self.functional_layers):
                 cur_exec_time, performance, energy, transfer_bytes = (
                     self.simulator.simulate_function(
@@ -522,9 +525,12 @@ class UPM_Profiler:
                     output_shape,
                 )  # or context?
             self.inference_time += cur_exec_time
-            self.update_inference_perf(performance)
-            self.update_inference_energy(energy)
-            self.update_inference_transfer_bytes(transfer_bytes)
+            summarization_phase = self.simulator.sum
+            self._update_inference_perf(performance, summarization_phase=summarization_phase)
+            self._update_inference_energy(energy, summarization_phase=summarization_phase)
+            self._update_inference_transfer_bytes(
+                transfer_bytes, summarization_phase=summarization_phase
+            )
 
             self.layers[layer_obj].exec_time += cur_exec_time
             self.layers[layer_obj].energy = add_dictionaries(self.layers[layer_obj].energy, energy)
@@ -536,13 +542,13 @@ class UPM_Profiler:
             self.layers[layer_obj].exec_time += cur_exec_time
             self.layers_start[layer_obj] = self.forward_time_start
             self.layers_end[layer_obj] = self.forward_time_end
-            transfer_bytes = 0
+            transfer_bytes = {}
 
         self.layers[layer_obj].exec_nums += 1
 
         summarization_phase = self.simulator.sum if self.simulator else False
 
-        cur_logging = layer_log(
+        cur_logging = LayerLog(
             self.layers[layer_obj].id,
             self.layers[layer_obj].name,
             self.layers[layer_obj].context,
@@ -569,19 +575,19 @@ class UPM_Profiler:
             self.n_executions += 1
             print(f"New token generated ({self.n_executions})", end="\r")
 
-    def forward_func_start(self, name, context, input_shape):
+    def forward_func_start(self, input_shape: torch.Size) -> None:
+        """Start profiling a function call."""
         self.func_input_shape = input_shape
 
-        self.start_func = time.time_ns()
-        if self.simulator:
-            self.start_func = self.inference_time
+        self.start_func = self.inference_time if self.simulator else time.time_ns()
 
-    def forward_func_end(self, function, context, output_shape):
+    def forward_func_end(self, function: Callable, context: str, output_shape: torch.Size) -> None:
+        """End profiling a function call."""
         self.end_func = time.time_ns()
 
         func_profile = self.functions.get(
             function.__name__,
-            layer_profile(
+            LayerProfile(
                 0, function.__name__, 0, context, self.func_input_shape[-1], output_shape[-1]
             ),
         )
@@ -589,23 +595,25 @@ class UPM_Profiler:
         cur_exec_time = self.end_func - self.start_func
         performance = {}
         energy = {}
-        relative_time = self.start_func - self.start_inference
 
         if self.simulator:
             cur_exec_time, performance, energy, transfer_bytes = self.simulator.simulate_function(
                 function, context, self.func_input_shape, output_shape
             )
             self.inference_time += cur_exec_time
-            self.update_inference_perf(performance)
-            self.update_inference_energy(energy)
-            self.update_inference_transfer_bytes(transfer_bytes)
+            summarization_phase = self.simulator.sum
+            self._update_inference_perf(performance, summarization_phase=summarization_phase)
+            self._update_inference_energy(energy, summarization_phase=summarization_phase)
+            self._update_inference_transfer_bytes(
+                transfer_bytes, summarization_phase=summarization_phase
+            )
         else:
-            transfer_bytes = 0
+            transfer_bytes = {}
 
         relative_exec_time = self.start_func
 
         summarization_phase = self.simulator.sum if self.simulator else False
-        cur_logging = layer_log(
+        cur_logging = LayerLog(
             0,  # functions have ID set to 0
             function.__name__,
             context,

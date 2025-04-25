@@ -7,42 +7,55 @@
 # hardware.
 
 
+import typing
+from collections.abc import Callable
+from dataclasses import dataclass, field
+
 import torch
 
 from upmem_llm_framework.base_architecture import BaseArchitecture
+from upmem_llm_framework.profiler import LayerProfile
 from upmem_llm_framework.sim_architectures import get_spec
 from upmem_llm_framework.utils import add_dictionaries
 
 
+@dataclass
 class Simulator:
-    def __init__(
-        self,
-        data_type_bytes=2.0,
-        sliding_window=-1,
-        num_key_value_heads=-1,
-        verbose=False,
-    ):
-        self.data_type_bytes = data_type_bytes
-        self.layer_mapping = {}
-        self.layer_attn_ctxt = ""
-        self.use_kv_cache = True
-        self.sum = True
-        self.sum_size = 0
-        self.batch_size = 0
-        self.sliding_window = sliding_window
-        self.num_key_value_heads = num_key_value_heads
-        self.verbose = verbose
+    """Simulator class to simulate the execution of a model on a given architecture."""
 
-        self.moe_already_sent = {}
-        self.moe_end = ""
-        self.experts_per_token = 2  # from Mixtral 8x7B
+    data_type_bytes: float = 2.0
+    sliding_window: int | None = None
+    num_key_value_heads: int | None = None
+    verbose: bool = False
 
+    layer_mapping: dict[str, str] = field(default_factory=dict)
+    layer_attn_ctxt: str = ""
+    use_kv_cache: bool = True
+    sum: bool = True
+    sum_size: int = 0
+    batch_size: int = 0
+
+    moe_already_sent: dict[str, int] = field(default_factory=dict)
+    moe_end: str = ""
+    experts_per_token: int = 2  # from Mixtral 8x7B
+    current_device: BaseArchitecture = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Initialize the simulator with a default HOST device."""
         self.current_device, _, _ = self.name_to_device("HOST")
 
-    def start_gen(self):
+    def start_gen(self) -> None:
+        """Start the generation process."""
         self.sum = False
 
-    def map_layers(self, mapping, layer_attn_ctxt="", moe_end="", experts_per_token=2):
+    def map_layers(
+        self,
+        mapping: dict[str, str],
+        layer_attn_ctxt: str = "",
+        moe_end: str = "",
+        experts_per_token: int = 2,
+    ) -> None:
+        """Map the layers to the devices."""
         self.layer_mapping = mapping
         self.layer_attn_ctxt = layer_attn_ctxt
         if self.verbose:
@@ -51,7 +64,8 @@ class Simulator:
         self.moe_end = moe_end
         self.experts_per_token = experts_per_token
 
-    def name_to_device(self, full_name: str):
+    def name_to_device(self, full_name: str) -> tuple[BaseArchitecture, bool, bool]:
+        """Get the device corresponding to the given name."""
         device_name = full_name.split(",")[0].replace("-", "_")
         flags = full_name.split(",")[1] if len(full_name.split(",")) > 1 else ""
 
@@ -76,7 +90,10 @@ class Simulator:
 
         return new_device, do_transfer, moe
 
-    def simulate_attn(self, input_shape):
+    def simulate_attn(
+        self, input_shape: torch.Size
+    ) -> tuple[float, dict[str, float], dict[str, float]]:
+        """Simulate an attention layer."""
         batch_size = input_shape[0] if (len(input_shape) > 2) else 1
         n_rows = input_shape[1] if (len(input_shape) > 1) else 1
         n_columns = input_shape[-1]
@@ -148,7 +165,10 @@ class Simulator:
 
         return compute_time_ns, performance, energy_compute
 
-    def simulate_end(self, input_shape, generated_tokens=1):
+    def simulate_end(
+        self, input_shape: torch.Size, generated_tokens: int = 1
+    ) -> tuple[float, dict[str, float], dict[str, float], dict[str, float]]:
+        """End the simulation."""
         time_send_ans_to_host = 0
         perf_send_ans_to_host = {}
         energy_send_ans_to_host = {}
@@ -172,17 +192,33 @@ class Simulator:
             data_send_ans_to_host,
         )
 
-    def check_moe(self, context):
+    def check_moe(self, context: str) -> bool:
+        """Check if the given context has been processed for the first time.
+
+        This method tracks how many times a specific context (e.g., a layer or operation)
+        has been encountered during the MoE processing. It increments the count for the
+        given context and returns whether this is the first time it has been seen.
+
+        :params context str: The identifier for the context being checked.
+        :returns bool: True if this is the first time the context is being processed,
+            False otherwise.
+        """
         num_seen = self.moe_already_sent.get(context, 0)
 
         self.moe_already_sent[context] = num_seen + 1
 
         return num_seen == 0
 
-    def reset_moe(self):
-        all_moe_seen = True
-        for v in self.moe_already_sent.values():
-            all_moe_seen = all_moe_seen and (v == self.experts_per_token)
+    def reset_moe(self) -> bool:
+        """Reset the MoE state.
+
+        This method checks if all MoE contexts have been processed the specified number of times.
+        If so, it resets the internal state for the next iteration.
+
+        :returns bool: True if all MoE contexts have been processed the specified number of times,
+            False otherwise.
+        """
+        all_moe_seen = all(v == self.experts_per_token for v in self.moe_already_sent.values())
 
         if all_moe_seen:
             # Reset dict for next iteration
@@ -190,14 +226,25 @@ class Simulator:
 
         return all_moe_seen
 
-    def check_sync_point(self, context, input_shape):
-        time_send_ans_to_host = 0
-        time_send_ans_from_host = 0
-        perf = {}
-        energy = {}
-        moved_data = {}
+    def check_sync_point(
+        self, context: str, input_shape: torch.Size
+    ) -> tuple[float, float, dict[str, float], dict[str, float], dict[str, float]]:
+        """Check if the current context requires a synchronization point.
 
-        new_device = None
+        This method checks if the current context (e.g., a layer or operation) requires
+        a synchronization point, which may involve transferring data between devices.
+
+        :params context str: The identifier for the current context.
+        :params input_shape torch.Size: The shape of the input data.
+        :returns tuple: A tuple containing the time taken for data transfer to the host,
+            the time taken for data transfer from the host, and dictionaries for performance,
+            energy, and moved data.
+        """
+        time_send_ans_to_host = 0.0
+        time_send_ans_from_host = 0.0
+        perf: dict[str, float] = {}
+        energy: dict[str, float] = {}
+        moved_data: dict[str, float] = {}
 
         # print(f"Try mapping {context}")
         # assume that if the layer is not mapped, it stays in the current device
@@ -243,7 +290,27 @@ class Simulator:
 
         return time_send_ans_to_host, time_send_ans_from_host, perf, energy, moved_data
 
-    def simulate_layer(self, layer, input_shape, layer_obj, weight_shape, output_shape):
+    def simulate_layer(
+        self,
+        layer: LayerProfile,
+        input_shape: torch.Size,
+        layer_obj: torch.nn.Module,
+        weight_shape: torch.Size,
+        output_shape: torch.Size,
+    ) -> tuple[float, dict[str, float], dict[str, float], dict[str, float]]:
+        """Simulate the execution of a layer on the current device.
+
+        This method checks if the current layer requires a synchronization point,
+        simulates the computation, and returns the performance and energy metrics.
+
+        :params layer LayerProfile: The layer object to be simulated.
+        :params input_shape torch.Size: The shape of the input data.
+        :params layer_obj torch.nn.Module: The layer object to be simulated.
+        :params weight_shape torch.Size: The shape of the weights.
+        :params output_shape torch.Size: The shape of the output data.
+        :returns tuple: A tuple containing the total time taken, performance metrics,
+            energy metrics, and data transfer metrics.
+        """
         time_send_ans_to_host = 0
         time_send_ans_from_host = 0
         compute_time_ns = 0
@@ -267,25 +334,24 @@ class Simulator:
             data_transfer,
         ) = self.check_sync_point(layer.context, input_shape)
 
-        if layer.context == self.moe_end and self.moe_end != "":
-            if self.reset_moe():
-                # output_shape expected to be [tokens * batch_size, features]
-                # Send all experts' output except one, which shall be accounted by the layer mapping
-                transfer_shape = torch.Size(
-                    [self.experts_per_token - 1, output_shape[0], output_shape[1]]
-                )
-                (
-                    time_send_ans_to_host_moe,
-                    perf_transfer_moe,
-                    energy_transfer_moe,
-                    data_transfer_moe,
-                ) = self.current_device.host_transfer(transfer_shape, direction="to_host")
-                if self.verbose:
-                    print("Last layer of MoE sends back to HOST: ", transfer_shape)
-                time_send_ans_to_host += time_send_ans_to_host_moe
-                perf_transfer = add_dictionaries(perf_transfer, perf_transfer_moe)
-                energy_transfer = add_dictionaries(energy_transfer, energy_transfer_moe)
-                data_transfer = add_dictionaries(data_transfer, data_transfer_moe)
+        if layer.context == self.moe_end and self.moe_end != "" and self.reset_moe():
+            # output_shape expected to be [tokens * batch_size, features]
+            # Send all experts' output except one, which shall be accounted by the layer mapping
+            transfer_shape = torch.Size(
+                [self.experts_per_token - 1, output_shape[0], output_shape[1]]
+            )
+            (
+                time_send_ans_to_host_moe,
+                perf_transfer_moe,
+                energy_transfer_moe,
+                data_transfer_moe,
+            ) = self.current_device.host_transfer(transfer_shape, direction="to_host")
+            if self.verbose:
+                print("Last layer of MoE sends back to HOST: ", transfer_shape)
+            time_send_ans_to_host += time_send_ans_to_host_moe
+            perf_transfer = add_dictionaries(perf_transfer, perf_transfer_moe)
+            energy_transfer = add_dictionaries(energy_transfer, energy_transfer_moe)
+            data_transfer = add_dictionaries(data_transfer, data_transfer_moe)
 
         # pay compute
         step_time, step_perf, step_energy = self.current_device.compute_ns(
@@ -321,8 +387,27 @@ class Simulator:
 
         return total_time, total_perf, total_energy, data_transfer
 
-    def simulate_function(self, function, context, input_shape, output_shape):
-        function_name = function.__name__ if hasattr(function, "__name__") else function.name
+    def simulate_function(
+        self,
+        function: torch.nn.Module | Callable | LayerProfile,
+        context: str,
+        input_shape: torch.Size,
+        output_shape: torch.Size | int,
+    ) -> tuple[float, dict[str, float], dict[str, float], dict[str, float]]:
+        """Simulate the execution of a function on the current device.
+
+        This method checks if the current function requires a synchronization point,
+        simulates the computation, and returns the performance and energy metrics.
+
+        :params function Callable: The function to be simulated.
+        :params context str: The context in which the function is executed.
+        :params input_shape torch.Size: The shape of the input data.
+        :params output_shape torch.Size: The shape of the output data.
+        :returns tuple: A tuple containing the total time taken, performance metrics,
+            energy metrics, and data transfer metrics.
+        :raises ValueError: If the function is not supported.
+        """
+        function_name = getattr(function, "__name__", "") or getattr(function, "name", "")
 
         if self.verbose:
             print(
@@ -359,36 +444,39 @@ class Simulator:
 
         return total_time, total_perf, total_energy, data_transfer
 
-    def _compute_function_metrics(self, function, context, input_shape, output_shape):
-        if hasattr(function, "__name__") and function.__name__.endswith("softmax"):
+    def _compute_function_metrics(
+        self,
+        function: torch.nn.Module | Callable | LayerProfile,
+        context: str,
+        input_shape: torch.Size,
+        output_shape: torch.Size | int,
+    ) -> tuple[float, dict[str, float], dict[str, float]]:
+        if getattr(function, "__name__", "").endswith("softmax"):
             return self.current_device.compute_softmax_ns(input_shape)
-        if hasattr(function, "name") and function.name.endswith("LlamaRMSNorm"):
-            return self.current_device.compute_RMSNorm_ns(input_shape, output_shape)
-        if hasattr(function, "name") and (
-            function.name.endswith("SiLU") or function.name.endswith("SiLUActivation")
-        ):
+        if getattr(function, "name", "").endswith("LlamaRMSNorm"):
+            return self.current_device.compute_rmsnorm_ns(
+                input_shape, typing.cast("int", output_shape)
+            )
+        if getattr(function, "name", "").endswith(("SiLU", "SiLUActivation")):
             return self.current_device.compute_activation_ns(input_shape, activation="SiLU")
-        if hasattr(function, "__name__") and function.__name__.endswith("matmul"):
+        if getattr(function, "__name__", "").endswith("matmul"):
             return self.current_device.compute_matmul_ns(
                 context,
                 input_shape,
-                output_shape,
+                typing.cast("torch.Size", output_shape),
                 summarization=self.sum,
                 sum_size=self.sum_size,
             )
-        if hasattr(function, "__name__") and function.__name__.endswith(
-            "scaled_dot_product_attention"
-        ):
+        if getattr(function, "__name__", "").endswith("scaled_dot_product_attention"):
             return self.current_device.compute_scaled_dot_product_ns(
-                context,
                 input_shape,
-                output_shape,
+                typing.cast("torch.Size", output_shape),
                 summarization=self.sum,
-                sum_size=self.sum_size,
             )
-        raise ValueError(
+        err = (
             "Unsupported function: "
-            f"{function.__name__ if hasattr(function, '__name__') else function.name}, "
+            f"{getattr(function, '__name__', '') or getattr(function, 'name', '')}, "
             f"type: {type(function)}, "
             f"string: {function}"
         )
+        raise ValueError(err)

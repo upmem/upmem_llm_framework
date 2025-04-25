@@ -1,12 +1,16 @@
 """Tests for `upmem_llm_framework` package."""
 
 import warnings
+from typing import TYPE_CHECKING, cast
 
 import typer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typer.testing import CliRunner
 
 import upmem_llm_framework as upmem_layers
+
+if TYPE_CHECKING:
+    from torch import Tensor
 
 runner = CliRunner()
 app = typer.Typer(callback=upmem_layers.initialize_profiling_options)
@@ -38,9 +42,8 @@ ignored_warning = (
 
 
 @app.command("profile")
-def run_tiny_llama_model_with_profiler():
+def run_tiny_llama_model_with_profiler() -> None:
     """Run the tiny LLaMA model with the profiler."""
-
     # Initialize the profiler
     upmem_layers.profiler_init()
     # Load the tiny LLaMA model and tokenizer
@@ -54,7 +57,9 @@ def run_tiny_llama_model_with_profiler():
 
     # Prepare input data
     input_text = "Hello, world!"
-    input_token = tokenizer.encode(input_text, return_tensors="pt", return_token_type_ids=False)
+    input_token = cast(
+        "Tensor", tokenizer.encode(input_text, return_tensors="pt", return_token_type_ids=False)
+    )
     input_ids = {
         "input_ids": input_token,
         "attention_mask": input_token.new_ones(input_token.shape),
@@ -76,7 +81,7 @@ def run_tiny_llama_model_with_profiler():
     assert outputs.shape == (1, gen_length)
 
 
-def test_tiny_llama_model_with_profiler():
+def test_tiny_llama_model_with_profiler() -> None:
     """Test the tiny LLaMA model with the profiler."""
     result = runner.invoke(
         app,

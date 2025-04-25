@@ -12,7 +12,7 @@ import json
 from functools import cache
 from importlib.resources import as_file, files
 from pathlib import Path
-from typing import Dict
+from typing import Any
 
 import yaml
 from jsonschema import validate
@@ -20,7 +20,7 @@ from jsonschema import validate
 from upmem_llm_framework.options import options
 
 
-def read_architecture_file(file: Path, schema: Dict) -> Dict:
+def _read_architecture_file(file: Path, schema: dict) -> dict[str, dict[str, Any]]:
     with open(file, "r", encoding="UTF-8") as f:
         architectures = yaml.safe_load(f)
     validate(architectures, schema)
@@ -28,35 +28,36 @@ def read_architecture_file(file: Path, schema: Dict) -> Dict:
 
 
 @cache
-def read_architectures() -> Dict:
-    """
-    Read the architectures from the sim_architectures.yaml file
+def _read_architectures() -> dict[str, dict[str, Any]]:
+    """Read the architectures from the sim_architectures.yaml file.
+
     :return: a dictionary containing the architectures
     """
     with as_file(files("upmem_llm_framework")) as resources_dir:
-        with open(resources_dir / "architectures_schema.json", "r", encoding="UTF-8") as f:
+        with (resources_dir / "architectures_schema.json").open("r", encoding="UTF-8") as f:
             schema = json.load(f)
 
-        architectures = read_architecture_file(resources_dir / "sim_architectures.yaml", schema)
+        architectures = _read_architecture_file(resources_dir / "sim_architectures.yaml", schema)
 
         if options.extra_archs:
-            extra_architectures = read_architecture_file(options.extra_archs, schema)
+            extra_architectures = _read_architecture_file(options.extra_archs, schema)
             architectures.update(extra_architectures)
 
     return architectures
 
 
 @cache
-def get_spec(name: str) -> Dict:
-    """
-    Get an architecture object corresponding to the given name
+def get_spec(name: str) -> dict:
+    """Get an architecture object corresponding to the given name.
+
     :param name: the name of the architecture
     :return: an object corresponding to the architecture
     """
-    architectures = read_architectures()
+    architectures = _read_architectures()
 
     architecture_spec = architectures.get(name)
     if architecture_spec is None:
-        raise ValueError(f"Architecture {name} not found in sim_architectures.yaml")
+        err = f"Architecture {name} not found in sim_architectures.yaml"
+        raise ValueError(err)
 
     return architecture_spec
