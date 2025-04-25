@@ -5,6 +5,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 import torch
 from torch.nn import Conv2d, Dropout, Embedding, LayerNorm, Linear, SiLU, Softmax
@@ -14,23 +15,7 @@ from transformers.pytorch_utils import Conv1D
 
 from upmem_llm_framework.options import Options
 from upmem_llm_framework.simulator import Simulator
-from upmem_llm_framework.utils import add_dictionaries
-
-
-@dataclass
-class LayerProfile:
-    """Class to store profiling information for a layer."""
-
-    id: int
-    name: str
-    n_layer: int
-    context: str
-    dim_in: int
-    dim_out: int
-    exec_time: float = 0
-    exec_nums: int = 0
-    energy: dict = field(default_factory=dict)
-    obj: torch.nn.Module | None = None
+from upmem_llm_framework.utils import LayerProfile, add_dictionaries
 
 
 @dataclass
@@ -99,7 +84,7 @@ class UPMProfiler:
         del layer
         return (1, 1)
 
-    layer_dimensions: Mapping[type, Callable[[torch.nn.Module], tuple[int, int]]] = {
+    layer_dimensions: ClassVar[Mapping[type, Callable[[torch.nn.Module], tuple[int, int]]]] = {
         Linear: (lambda layer: (layer.in_features, layer.out_features)),
         NewGELUActivation: _fixed_layer_dim,
         SiLU: _fixed_layer_dim,

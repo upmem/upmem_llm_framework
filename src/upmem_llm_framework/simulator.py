@@ -1,11 +1,4 @@
-#
-# Copyright (c) 2014-2024 - UPMEM
-# UPMEM S.A.S France property - UPMEM confidential information covered by NDA
-# For UPMEM partner internal use only - no modification allowed without permission of UPMEM
-#
-# This file implements multiple entry points called by the profiler to simulate the underlying
-# hardware.
-
+"""Implement multiple entry points called by the profiler to simulate the underlying hardware."""
 
 import typing
 from collections.abc import Callable
@@ -14,9 +7,8 @@ from dataclasses import dataclass, field
 import torch
 
 from upmem_llm_framework.base_architecture import BaseArchitecture
-from upmem_llm_framework.profiler import LayerProfile
 from upmem_llm_framework.sim_architectures import get_spec
-from upmem_llm_framework.utils import add_dictionaries
+from upmem_llm_framework.utils import LayerProfile, add_dictionaries
 
 
 @dataclass
